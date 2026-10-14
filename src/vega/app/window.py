@@ -106,7 +106,7 @@ class VegaWindow(QMainWindow):
         self.bank_pending = label("", "muted")
         faces_layout.addWidget(self.held_frets)
         faces_layout.addWidget(self.bank_pending)
-        self.bank_next.setToolTip("Options is not mapped yet. Bank changes wait for held buttons and pending strokes.")
+        self.bank_next.setToolTip("Options also advances the bank. Changes wait for held buttons and pending strokes.")
         faces_layout.addStretch()
         controls.addWidget(faces_panel, 1)
         lever_panel, lever_layout = panel("Lever")

@@ -8,7 +8,7 @@ from typing import Callable, Protocol
 from vega.audio.preview import PreviewSynth
 from vega.input.events import RawEvent
 from vega.input.pipeline import VegaInputPipeline
-from vega.model import FaceControl
+from vega.model import ButtonChange, ButtonControl, FaceControl
 from vega.midi.output import MidiOutput
 from vega.music.harmony import BankAction, FretSelection, Harmony, interpret, next_bank
 from vega.music.guitar import GuitarVoicing, voice
@@ -101,6 +101,9 @@ class VegaRuntime:
             elif self.device.connected:
                 ready = self.pipeline.on_raw(event)
                 captured.extend((g, self.bank) for g in ready)
+                change = self.pipeline.last_change
+                if isinstance(change, ButtonChange) and change.control is ButtonControl.OPTIONS and change.pressed:
+                    self.bank_action(BankAction.BANK_NEXT)
                 self._apply_bank()
         # Flush during idle as well as after event batches. No GUI settling delay.
         captured.extend((g, self.bank) for g in self.pipeline.flush(now))

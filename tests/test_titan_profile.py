@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from vega.input.events import RawAxisEvent, RawButtonEvent, RawHatEvent
 from vega.input.state import PhysicalState
 from vega.input.titan_profile import TitanPcDpProfile
-from vega.model import FaceChange, FaceControl, LeverChange
+from vega.model import ButtonChange, ButtonControl, FaceChange, FaceControl, LeverChange
 
 
 class TitanProfileTests(unittest.TestCase):
@@ -61,6 +61,21 @@ class TitanProfileTests(unittest.TestCase):
             self.profile.translate(RawAxisEvent(5, -0.97, 0.6)),
             FaceChange(FaceControl.FACE_7, False, 0.6),
         )
+
+    def test_verified_options_button_press_and_release(self) -> None:
+        for pressed, timestamp in ((True, 1.0), (False, 2.0)):
+            self.assertEqual(self.profile.translate(RawButtonEvent(7, pressed, timestamp)),
+                             ButtonChange(ButtonControl.OPTIONS, pressed, timestamp))
+
+    def test_options_state_is_separate_from_fingering_and_resets(self) -> None:
+        state = PhysicalState()
+        state.apply(FaceChange(FaceControl.FACE_1, True, 0))
+        self.assertTrue(state.apply(ButtonChange(ButtonControl.OPTIONS, True, 1)))
+        self.assertFalse(state.apply(ButtonChange(ButtonControl.OPTIONS, True, 2)))
+        self.assertEqual(state.fingering, frozenset({FaceControl.FACE_1}))
+        self.assertEqual(state.held_buttons, {ButtonControl.OPTIONS})
+        state.reset()
+        self.assertFalse(state.held_buttons)
 
     def test_axis_reset_clears_previous_press(self) -> None:
         self.profile.translate(RawAxisEvent(4, 1.0, 0.0))

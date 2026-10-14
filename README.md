@@ -31,8 +31,10 @@ shown in the waiting status. Run only one Vega app/diagnostic at a time.
 - **Banks:** Previous/Next cycle 1–8, 9–16, 17–24. Every launch starts in bank 1.
   Button labels show their current frets. Bank changes wait until all held faces
   are released and a pending stroke has finalized; they never reinterpret a held chord.
-- **Options is NOT mapped yet.** Its raw ID still needs hardware identification.
-  Use the GUI controls now; no Options/Create/Share IDs are guessed.
+- **Options advances the fret bank:** its verified PC+DP mapping is pygame
+  button 7, translated to symbolic OPTIONS. Each press advances once; release
+  does not advance. Previous/Next remain available in the GUI. Options is
+  silent and follows the same safe queue behavior as the GUI controls.
 - **No held frets:** the open guitar E2 A2 D3 G3 B3 E4.
 - **Held frets:** pitches are low E + fret. The lowest anchors the root; Vega
   recognizes common interval sets and keeps other combinations as Custom.

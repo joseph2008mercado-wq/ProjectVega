@@ -6,11 +6,13 @@ Three arithmetic fret banks (1–8, 9–16, 17–24), queued bank switching, chr
 harmonic input, common/custom interval recognition, configurable six-string
 fretboard data, deterministic compact voicing, and one shared StrumPlan for
 actual-pitch triangle preview and MIDI. Fret/bank changes never trigger notes.
-The verified raw PC+DP profile and gesture behavior are unchanged.
+The verified raw PC+DP face/lever mappings and gesture behavior are preserved.
 
-Options is **unverified**. Previous/Next GUI actions work now; no secondary raw
-button ID was guessed. A bank request waits for released faces and any pending
-stroke. Every launch starts on bank 1 with preview muted and MIDI disconnected.
+Options is **verified as pygame button 7** in PC+DP mode. Its symbolic OPTIONS
+press advances one bank; release and unchanged duplicate presses do not advance.
+It produces no gesture, preview or MIDI. Previous/Next GUI actions remain
+available. A bank request waits for released faces and any pending stroke.
+Every launch starts on bank 1 with preview muted and MIDI disconnected.
 
 Bank 1 frets 1/5/8 select F major. Generated strings 6→1:
 F2, C3, F3, A3, C4, F4; frets 1,3,3,2,1,1. Empty selection is exactly the open
@@ -32,7 +34,8 @@ Refresh stops/disconnects MIDI before rescanning; reselect a port afterward.
 
 ## Verification
 
-- Full Python 3.13.14 suite: **78 passed**, no failures or skips.
+- Initial musical-engine suite: **78 passed**. After the verified Options
+  correction, the full Python 3.13.14 suite: **86 passed**, no failures or skips.
 - Separate Qt window test processes at 125% and 150%: **3 passed each**.
 - Windows install-helper path/ownership checks: passed.
 - Windows executable build and native smoke check: passed; real Titan detected,
@@ -50,7 +53,7 @@ Refresh stops/disconnects MIDI before rescanning; reselect a port afterward.
   MIDI Mapper and Microsoft GS Wavetable Synth were present, not Vega Guitar.
 
 Not yet verified: an audible FL Studio/VST loopback session, live MIDI timing
-under load, port-loss recovery with a real cable, or Options' raw mapping.
+under load or port-loss recovery with a real cable.
 Digital lever velocity remains profile-based. Seventh-chord interval structures
 are supported in musical data, but most cannot be held in one eight-fret bank.
 
@@ -69,10 +72,10 @@ Options → MIDI settings → Input → Vega Guitar → Enable → (generic cont
 Select a loaded instrument channel, keep preview muted and try an open FULL
 stroke, then frets 1/5/8. Record notes to inspect onset spacing; test Panic and
 Titan unplug. Do not feed the DAW output back into the same cable. The full
-setup, troubleshooting and exact Options-discovery command are in README and
+setup, troubleshooting and Options bank-switching behavior are in README and
 ARCHITECTURE. System synth outputs alone do not feed FL Studio.
 
-## Every changed or added source file
+## Files from the initial musical-engine pass
 
 | File | Change |
 | --- | --- |
@@ -105,5 +108,7 @@ ARCHITECTURE. System synth outputs alone do not feed FL Studio.
 | `tests/test_settings.py` | Spread validation and persistence coverage. |
 | `tests/test_window.py` | Musical/MIDI GUI state, sizing policy and scroll reachability tests. |
 
-Build artifacts and temporary smoke reports remain ignored. No Titan input
-profile, raw inspector, gesture inspector, icon art or unrelated code was changed.
+Build artifacts and temporary smoke reports remain ignored. The later Options
+correction adds the verified button 7 profile mapping, symbolic button state,
+press-edge bank routing and regression tests; all earlier face/lever mappings
+and musical behavior are preserved. Raw/gesture inspectors and icon art are unchanged.

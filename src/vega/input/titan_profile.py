@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from vega.input.events import RawAxisEvent, RawButtonEvent, RawEvent, RawHatEvent
-from vega.model import ControlChange, FaceChange, FaceControl, LeverChange
+from vega.model import ButtonChange, ButtonControl, ControlChange, FaceChange, FaceControl, LeverChange
 
 
 # These pygame IDs are deliberately confined to the physical profile.
@@ -16,6 +16,7 @@ BUTTON_FACES = {
     1: FaceControl.FACE_6,
 }
 AXIS_FACES = {5: FaceControl.FACE_7, 4: FaceControl.FACE_8}
+BUTTON_CONTROLS = {7: ButtonControl.OPTIONS}
 DP_HAT = 0
 
 
@@ -41,7 +42,10 @@ class TitanPcDpProfile:
     def translate(self, event: RawEvent) -> ControlChange | None:
         if isinstance(event, RawButtonEvent):
             face = BUTTON_FACES.get(event.button)
-            return FaceChange(face, event.pressed, event.timestamp) if face else None
+            if face is not None:
+                return FaceChange(face, event.pressed, event.timestamp)
+            control = BUTTON_CONTROLS.get(event.button)
+            return ButtonChange(control, event.pressed, event.timestamp) if control is not None else None
 
         if isinstance(event, RawHatEvent):
             return LeverChange(event.x, event.y, event.timestamp) if event.hat == DP_HAT else None

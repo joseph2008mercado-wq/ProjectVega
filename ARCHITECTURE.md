@@ -65,6 +65,7 @@ The real Titan was tested on Windows 11, Python 3.13.14, pygame 2.6.1 and SDL
 | FACE_6 | button 1 |
 | FACE_7 | axis 5 |
 | FACE_8 | axis 4 |
+| OPTIONS | button 7 |
 
 The two trigger-style axes start at 0, release near -1 and press near +1.
 The profile ignores startup midpoint and uses release/press thresholds -0.5/+0.5.
@@ -73,18 +74,24 @@ Only `input/titan_profile.py` owns these IDs. The input profile, physical state,
 and recognizer behavior are preserved. The recognizer merely exposes a read-only
 `has_pending` property for safe bank switching.
 
-Options and Create/Share do **not** have authoritative mappings in this repository.
-GUI buttons invoke symbolic `BankAction.BANK_NEXT` and `BANK_PREVIOUS`; neither
-has a guessed raw binding. Future verified secondary IDs belong only in the
-Titan profile. LS/RS remain unsupported. Both raw and gesture inspectors remain
-independent of the music/GUI/output code.
+Options is verified as ordinary pygame button 7 in PC+DP mode. The profile
+translates it to `ButtonChange(ButtonControl.OPTIONS, pressed, timestamp)`.
+Physical state tracks secondary buttons separately from fretting faces and
+suppresses duplicate unchanged presses. The pipeline exposes its applied
+symbolic edge as `last_change`; the runtime maps an OPTIONS press to
+`BankAction.BANK_NEXT` (FRET_BANK_NEXT). Release performs no bank action.
+Options never creates a stroke or schedules notes. A stroke already pending
+from lever movement still finalizes normally with its captured bank/fingering.
+GUI Previous/Next invoke the same bank behavior. Create/Share remains unmapped;
+future secondary IDs belong only in the Titan profile. LS/RS remain unsupported.
+Both raw and gesture inspectors remain independent of music/GUI/output code.
 
 ## Component responsibilities, structures and ownership
 
 | Module | Responsibility / state owner |
 | --- | --- |
 | `input/events.py`, `pygame_titan.py`, `desktop_source.py` | Timestamped raw button/axis/hat events, selected controller handle, hotplug and SDL pumping. |
-| `input/titan_profile.py`, `state.py`, `pipeline.py` | Raw-to-symbolic translation, held-face set, lever x/y, reset and recognizer invocation. |
+| `input/titan_profile.py`, `state.py`, `pipeline.py` | Raw-to-symbolic translation, held-face and secondary-button sets, lever x/y, applied symbolic edges, reset and recognizer invocation. |
 | `music/strum.py` | Pending immutable `StrumGesture(direction, character, timestamp, fingering)` and horizontal rearm state. No music interpretation. |
 | `music/harmony.py` | `FretSelection(bank, frets)`, symbolic bank actions, immutable `Harmony(pitches, root, pitch_classes, intervals, identity)`. |
 | `music/guitar.py` | Configurable `Fretboard(tuning)`, deterministic `voice`, `GuitarVoicing(strings)`, `VirtualString(string, note, fret)`; derived muted/open/fretted state. |
@@ -109,6 +116,11 @@ both clear. Disconnect cancels a queued request. At each finalized gesture the
 runtime captures its active bank before applying a waiting change, including
 when multiple events arrive in one batch. A captured fingering is never
 reinterpreted under the next bank.
+
+The verified OPTIONS press uses this same safe queue: banks 1→2→3→1.
+OPTIONS is outside the fingering set, so holding it cannot change harmony or
+the captured FACE controls. Press/release alone produces no gesture, preview
+audio or MIDI. Reset on disconnect rearms the secondary-button state.
 
 Each selected fret gives pitch `40 + fret` (low E reference). Keep the exact
 selected MIDI pitches; the lowest is the root anchor. Relative intervals are
@@ -292,31 +304,31 @@ banks; held-fret harmonic state; silent fret changes; open-state guitar; determi
 voicing; shared plans; RIGHT low→high and LEFT high→low; FULL/NORMAL/STRICT coverage;
 optional muted-start preview; existing-port MIDI; GUI-independent runtime.
 
-Hardware/playing-dependent: Options/Create mapping, concurrent access, future
+Hardware/playing-dependent: Create/Share mapping, concurrent access, future
 LS/RS profiles, latency and preferred spread/voicing feel. No driver, bends,
 slides, capo, keyswitches, tuning UI or instrument-specific profiles in this stage.
 
 1. **Done:** raw discovery, verified profile and deterministic gesture recognizer.
 2. **Done:** desktop preview, identity, packaging and safe local shortcuts.
 3. **Implemented now:** banks, harmony, fretboard/voicing, shared plans and MIDI routing.
-4. **Next validation:** identify Options; connect a real loopback port and FL Studio;
+4. **Next validation:** connect a real loopback port and FL Studio;
    play open/F-major strums, inspect spacing, retrigger notes and test panic/unplug.
 5. **Later, measured improvements:** background/tray host, scheduling worker if
    justified, broader harmonic input policy, articulations and integrated endpoint.
 
-## Beginner summary and exact next hardware task
+## Beginner summary and next live check
 
 The buttons choose musical notes; the voicer arranges them on six guitar strings.
 The lever chooses how to sweep those strings. One plan goes to the small preview
 synth and/or to a MIDI cable feeding a DAW. Input, music and transport remain separate.
 
-Next, close Vega, keep PC+DP, run:
+Keep PC+DP and launch Vega:
 
 ```powershell
-.\.venv\Scripts\python.exe -m vega.diagnostics.inspect_titan --mode DP --log titan-options.txt
+.\.venv\Scripts\python.exe -m vega.app
 ```
 
-Leave other controls untouched; press/release Options three times, then optionally
-Create/Share three times, noting that order. Send the SESSION/INITIAL/BASELINE
-lines and changed BUTTON/AXIS/HAT lines (or report no events). Only that evidence
-should establish the remaining physical bank-action mapping.
+Press/release Options three times: the bank display should cycle 1–8→9–16→17–24→1–8
+without sound. Hold a FACE control and press Options: the current fret remains
+unchanged until the faces and any pending stroke clear. Then connect the existing
+MIDI cable to the DAW and verify open/F-major strokes, spacing and panic/unplug.

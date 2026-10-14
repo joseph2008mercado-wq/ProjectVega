@@ -17,6 +17,10 @@ class FaceControl(Enum):
     FACE_8 = auto()
 
 
+class ButtonControl(Enum):
+    OPTIONS = auto()
+
+
 class StrumDirection(Enum):
     LEFT = auto()
     RIGHT = auto()
@@ -36,6 +40,13 @@ class FaceChange:
 
 
 @dataclass(frozen=True)
+class ButtonChange:
+    control: ButtonControl
+    pressed: bool
+    timestamp: float
+
+
+@dataclass(frozen=True)
 class LeverChange:
     x: int
     y: int
@@ -46,4 +57,4 @@ class LeverChange:
             raise ValueError("lever components must be -1, 0, or 1")
 
 
-ControlChange = FaceChange | LeverChange
+ControlChange = FaceChange | ButtonChange | LeverChange

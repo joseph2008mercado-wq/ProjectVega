@@ -48,6 +48,81 @@ class RuntimeTests(unittest.TestCase):
         self.assertFalse(self.audio.requests)
         self.assertIsNone(self.runtime.latest_plan)
 
+    def test_options_press_release_and_duplicate_press_advance_once(self):
+        self.connect()
+        self.source.events = [RawButtonEvent(7, True, 1, 1)]
+        self.assertEqual(self.runtime.tick(1), [])
+        self.assertEqual(self.runtime.bank, 2)
+        self.source.events = [RawButtonEvent(7, True, 1.1, 1), RawButtonEvent(7, False, 1.2, 1)]
+        self.assertEqual(self.runtime.tick(1.2), [])
+        self.assertEqual(self.runtime.bank, 2)
+        self.assertFalse(self.runtime.pipeline.state.fingering)
+
+    def test_repeated_options_presses_cycle_banks_without_any_output(self):
+        self.connect()
+        self.preview.set_muted(False)
+        midi = FakeMidi()
+        self.runtime.midi = MidiOutput(midi)
+        self.runtime.midi.connect("Vega Guitar")
+        for timestamp, expected in ((1, 2), (2, 3), (3, 1)):
+            self.source.events = [RawButtonEvent(7, True, timestamp, 1),
+                                  RawButtonEvent(7, False, timestamp + .1, 1)]
+            self.assertEqual(self.runtime.tick(timestamp + .1), [])
+            self.assertEqual(self.runtime.bank, expected)
+        self.assertFalse(self.audio.requests)
+        self.assertFalse(midi.messages)
+        self.assertFalse(self.runtime.midi.active)
+        self.assertEqual(self.runtime.strum_count, 0)
+        self.assertIsNone(self.runtime.latest_plan)
+        self.assertFalse(self.runtime.pipeline.recognizer.has_pending)
+
+    def test_options_queues_while_fingering_is_held(self):
+        self.connect()
+        self.source.events = [RawButtonEvent(2, True, 1, 1), RawButtonEvent(7, True, 1.1, 1)]
+        self.assertEqual(self.runtime.tick(1.1), [])
+        self.assertEqual(self.runtime.bank, 1)
+        self.assertEqual(self.runtime.pending_bank, 2)
+        self.assertEqual(self.runtime.snapshot().selection.frets, (1,))
+        self.source.events = [RawButtonEvent(7, False, 1.2, 1), RawButtonEvent(2, False, 1.3, 1)]
+        self.assertEqual(self.runtime.tick(1.3), [])
+        self.assertEqual(self.runtime.bank, 2)
+        self.assertIsNone(self.runtime.pending_bank)
+
+    def test_options_queues_until_captured_stroke_finishes(self):
+        self.connect()
+        self.preview.set_muted(False)
+        self.source.events = [RawButtonEvent(2, True, 1, 1), RawHatEvent(0, 1, -1, 1, 1),
+                              RawButtonEvent(2, False, 1.001, 1), RawButtonEvent(7, True, 1.002, 1),
+                              RawButtonEvent(7, False, 1.003, 1)]
+        self.assertEqual(self.runtime.tick(1.003), [])
+        self.assertEqual(self.runtime.bank, 1)
+        self.assertEqual(self.runtime.pending_bank, 2)
+        self.assertFalse(self.audio.requests)
+        self.assertEqual(len(self.runtime.tick(1.009)), 1)
+        self.assertEqual(self.runtime.latest_selection.frets, (1,))
+        self.assertEqual(self.runtime.latest_selection.bank, 1)
+        self.assertEqual(self.runtime.bank, 2)
+        self.assertIsNone(self.runtime.pending_bank)
+        self.assertEqual(len(self.audio.requests), 1)  # Only the earlier lever stroke sounds.
+
+    def test_options_at_settle_deadline_keeps_previous_stroke_bank(self):
+        self.connect()
+        self.source.events = [RawButtonEvent(2, True, 1, 1), RawHatEvent(0, 1, 0, 1, 1),
+                              RawButtonEvent(2, False, 1.001, 1)]
+        self.runtime.tick(1.001)
+        self.source.events = [RawButtonEvent(7, True, 1.009, 1)]
+        self.assertEqual(len(self.runtime.tick(1.009)), 1)
+        self.assertEqual(self.runtime.latest_selection.bank, 1)
+        self.assertEqual(self.runtime.latest_selection.frets, (1,))
+        self.assertEqual(self.runtime.bank, 2)
+
+    def test_disconnect_rearms_options_press(self):
+        self.connect()
+        self.source.events = [RawButtonEvent(7, True, 1, 1), DeviceStatus(False),
+                              DeviceStatus(True), RawButtonEvent(7, True, 2, 1)]
+        self.assertEqual(self.runtime.tick(2), [])
+        self.assertEqual(self.runtime.bank, 3)
+
     def test_bank_queue_protects_held_and_pending_stroke(self):
         self.connect()
         self.preview.set_muted(False)
