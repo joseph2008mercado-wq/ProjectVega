@@ -37,4 +37,8 @@ QScrollBar::handle:vertical { background: #62526c; border: 1px solid #82708c;
     border-radius: 4px; min-height: 30px; margin: 2px; }
 QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
 QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: transparent; }
+QStatusBar { background: qlineargradient(x1:0,y1:0,x2:0,y2:1,
+    stop:0 #514559, stop:0.08 #302639, stop:1 #211a29);
+    border-top: 1px solid #6c5d77; color: #c5b9cd; font-size: 12px; }
+QStatusBar::item { border: none; }
 """

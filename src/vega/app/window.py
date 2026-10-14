@@ -5,13 +5,15 @@ from __future__ import annotations
 import time
 
 from PySide6.QtCore import QTimer, Qt
+from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
     QDoubleSpinBox, QFrame, QHBoxLayout, QLabel, QLayout, QMainWindow,
-    QPushButton, QScrollArea, QSlider, QVBoxLayout, QWidget,
+    QPushButton, QScrollArea, QSlider, QStatusBar, QVBoxLayout, QWidget,
 )
 
 from vega.app.style import STYLE
 from vega.app.widgets import FaceBank, GlassPanel, LeverView, VegaMark
+from vega.app.identity import APP_NAME, icon_path
 from vega.runtime import VegaRuntime
 from vega.settings import SettingsStore
 
@@ -29,7 +31,9 @@ def panel(title: str) -> tuple[QFrame, QVBoxLayout]:
     layout = QVBoxLayout(frame)
     layout.setContentsMargins(18, 14, 18, 14)
     layout.setSpacing(9)
-    layout.addWidget(label(title, "section"))
+    caption = label(title, "section")
+    caption.setFixedHeight(20)
+    layout.addWidget(caption)
     return frame, layout
 
 
@@ -39,7 +43,8 @@ class VegaWindow(QMainWindow):
         self.runtime = runtime
         self.store = store
         self.previous = None
-        self.setWindowTitle("Project Vega · Guitar control panel")
+        self.setWindowTitle(APP_NAME)
+        self.setWindowIcon(QIcon(str(icon_path())))
         self.resize(860, 860)
         self.setMinimumSize(780, 580)
         self.setStyleSheet(STYLE)
@@ -52,14 +57,14 @@ class VegaWindow(QMainWindow):
         self.setCentralWidget(scroll)
         outer = QVBoxLayout(body)
         outer.setSizeConstraint(QLayout.SizeConstraint.SetMinimumSize)
-        outer.setContentsMargins(22, 12, 22, 18)
-        outer.setSpacing(12)
+        outer.setContentsMargins(16, 12, 16, 14)
+        outer.setSpacing(10)
 
         header = QHBoxLayout()
         header.addWidget(VegaMark())
         brand = QVBoxLayout()
         title = label("Vega")
-        title.setStyleSheet("font-size: 28px; font-weight: 400; color: #e3d9cc;")
+        title.setStyleSheet("font-size: 24px; font-weight: 400; color: #e3d9cc;")
         brand.addWidget(title)
         brand.addWidget(label("Guitar controller", "muted"))
         header.addLayout(brand)
@@ -75,7 +80,7 @@ class VegaWindow(QMainWindow):
         row.addStretch()
         row.addWidget(self.device_status)
         device_layout.addLayout(row)
-        device_layout.addWidget(label("Qanba Titan PC+DP profile · Set physical switches to PC + DP", "muted"))
+        device_layout.addWidget(label("Profile: Qanba Titan PC+DP    |    Controller switches: PC + DP", "muted"))
         outer.addWidget(device_panel)
 
         controls = QHBoxLayout()
@@ -83,21 +88,21 @@ class VegaWindow(QMainWindow):
         faces_panel, faces_layout = panel("Face controls")
         self.faces = FaceBank()
         faces_layout.addWidget(self.faces)
-        faces_layout.addWidget(label("Hold any combination. Each strum captures it.", "muted"))
+        faces_layout.addWidget(label("Held buttons are captured with each strum.", "muted"))
         faces_layout.addStretch()
         controls.addWidget(faces_panel, 1)
         lever_panel, lever_layout = panel("Lever")
         lever_panel.setMinimumHeight(286)
         self.lever = LeverView()
         lever_layout.addWidget(self.lever)
-        lever_layout.addWidget(label("Left / right: stroke · Vertical center: normal", "muted"))
+        lever_layout.addWidget(label("Left/right: strum    |    Vertical center: NORMAL", "muted"))
         controls.addWidget(lever_panel, 1)
         outer.addLayout(controls)
 
         last_panel, last_layout = panel("Last strum")
-        self.strum = label("—  Awaiting a stroke", "value")
-        self.fingering = label("Fingering snapshot: —", "muted")
-        self.strum_meta = label("Horizontal center rearms the next stroke.", "muted")
+        self.strum = label("Waiting for a strum", "value")
+        self.fingering = label("Held at stroke: none", "muted")
+        self.strum_meta = label("Strums: 0", "muted")
         last_layout.addWidget(self.strum)
         last_layout.addWidget(self.fingering)
         last_layout.addWidget(self.strum_meta)
@@ -124,12 +129,12 @@ class VegaWindow(QMainWindow):
             button.clicked.connect(lambda checked=False, ms=value: self.settle.setValue(ms))
             presets.addWidget(button)
         timing_layout.addLayout(presets)
-        timing_layout.addWidget(label("Verified default: 8 ms · Adjustable", "muted"))
+        timing_layout.addWidget(label("Default: 8 ms", "muted"))
         lower.addWidget(timing_panel, 1)
 
         audio_panel, audio_layout = panel("Preview audio")
         audio_row = QHBoxLayout()
-        self.mute = QPushButton("Muted · Unmute")
+        self.mute = QPushButton("Unmute preview")
         self.mute.setObjectName("mute")
         self.mute.setCheckable(True)
         self.mute.setChecked(True)
@@ -154,11 +159,9 @@ class VegaWindow(QMainWindow):
         lower.addWidget(audio_panel, 1)
         outer.addLayout(lower)
 
-        footer = QHBoxLayout()
-        footer.addWidget(label("MIDI  ·  Not implemented yet", "muted"))
-        footer.addStretch()
-        footer.addWidget(label("Preview strums · Fixed audition pitches", "muted"))
-        outer.addLayout(footer)
+        status_bar = QStatusBar()
+        status_bar.showMessage("MIDI output is not available in this version.")
+        self.setStatusBar(status_bar)
         self.settings_status = label(store.error, "muted")
         self.settings_status.setWordWrap(True)
         self.settings_status.setVisible(bool(store.error))
@@ -201,18 +204,19 @@ class VegaWindow(QMainWindow):
         self.lever.set_position(state.lever_x, state.lever_y)
         gesture = state.latest_strum
         if gesture is None:
-            self.strum.setText("—  Awaiting a stroke")
-            self.fingering.setText("Fingering snapshot: —")
-            self.strum_meta.setText("Horizontal center rearms the next stroke.")
+            self.strum.setText("Waiting for a strum")
+            self.fingering.setText("Held at stroke: none")
+            self.strum_meta.setText(f"Strums: {state.strum_count}")
         else:
             self.strum.setText(f"{gesture.direction.name}  /  {gesture.character.name}")
             names = ", ".join(face.name for face in sorted(gesture.fingering, key=lambda face: face.value))
-            self.fingering.setText("Fingering snapshot: " + (names or "(none)"))
-            self.strum_meta.setText(f"Stroke {state.strum_count:04d}  ·  perf {gesture.timestamp:.6f} s")
+            self.fingering.setText("Held at stroke: " + (names or "none"))
+            self.strum_meta.setText(f"Strums: {state.strum_count}")
+            self.strum_meta.setToolTip(f"Last stroke timestamp: {gesture.timestamp:.6f} s (perf_counter)")
         self.audio_status.setText(state.audio_status)
         self.mute.blockSignals(True)
         self.mute.setChecked(state.muted)
-        self.mute.setText("Muted · Unmute" if state.muted else "Sound on · Mute")
+        self.mute.setText("Unmute preview" if state.muted else "Mute preview")
         self.mute.blockSignals(False)
         self.mute.setEnabled(self.runtime.preview.available)
 

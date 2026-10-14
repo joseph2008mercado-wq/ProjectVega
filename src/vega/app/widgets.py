@@ -1,10 +1,11 @@
 """Paint-only instruments. All state supplied as symbolic values by the view."""
 
 from PySide6.QtCore import QPointF, QRectF, Qt
-from PySide6.QtGui import QColor, QFont, QLinearGradient, QPainter, QPainterPath, QPen
+from PySide6.QtGui import QColor, QFont, QIcon, QLinearGradient, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import QFrame, QWidget
 
 from vega.model import FaceControl
+from vega.app.identity import icon_path
 
 
 class GlassPanel(QFrame):
@@ -15,9 +16,9 @@ class GlassPanel(QFrame):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         rect = QRectF(self.rect()).adjusted(1, 1, -1, -2)
         shape = QPainterPath()
-        shape.addRoundedRect(rect, 7, 7)
+        shape.addRoundedRect(rect, 4, 4)
         painter.setPen(QPen(QColor(0, 0, 0, 120), 2))
-        painter.drawRoundedRect(rect.translated(0, 1), 7, 7)
+        painter.drawRoundedRect(rect.translated(0, 1), 4, 4)
         surface = QLinearGradient(0, 0, self.width() * 0.35, self.height())
         surface.setColorAt(0, QColor(87, 73, 98, 225))
         surface.setColorAt(0.22, QColor(49, 38, 62, 235))
@@ -26,44 +27,35 @@ class GlassPanel(QFrame):
         painter.fillPath(shape, surface)
         painter.save()
         painter.setClipPath(shape)
-        sheen = QLinearGradient(0, 0, 0, 56)
-        sheen.setColorAt(0, QColor(237, 224, 247, 35))
-        sheen.setColorAt(1, QColor(237, 224, 247, 0))
-        painter.fillRect(QRectF(0, 0, self.width(), 56), sheen)
+        sheen = QLinearGradient(0, 0, 0, 38)
+        sheen.setColorAt(0, QColor(237, 224, 247, 45))
+        sheen.setColorAt(0.48, QColor(237, 224, 247, 20))
+        sheen.setColorAt(0.51, QColor(16, 10, 23, 55))
+        sheen.setColorAt(1, QColor(16, 10, 23, 25))
+        painter.fillRect(QRectF(0, 0, self.width(), 38), sheen)
+        painter.setPen(QColor(0, 0, 0, 100))
+        painter.drawLine(2, 38, self.width() - 3, 38)
+        painter.setPen(QColor(202, 181, 218, 28))
+        painter.drawLine(2, 39, self.width() - 3, 39)
         painter.restore()
         painter.setBrush(Qt.BrushStyle.NoBrush)
         painter.setPen(QPen(QColor(179, 159, 192, 105), 1))
         painter.drawPath(shape)
         painter.setPen(QPen(QColor(235, 222, 240, 32), 1))
-        painter.drawRoundedRect(rect.adjusted(1, 1, -1, -1), 6, 6)
+        painter.drawRoundedRect(rect.adjusted(1, 1, -1, -1), 3, 3)
         painter.end()
 
 
 class VegaMark(QWidget):
     def __init__(self) -> None:
         super().__init__()
-        self.setFixedSize(88, 48)
+        self.setFixedSize(56, 56)
         self.setAccessibleName("Vega: three abstract slashes crossing six strings")
+        self.icon = QIcon(str(icon_path()))
 
     def paintEvent(self, event) -> None:
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.scale(0.63, 0.63)
-        for index in range(6):
-            painter.setPen(QPen(QColor(180, 165, 145, 95), 1))
-            y = 24 + index * 6
-            painter.drawLine(QPointF(5, y), QPointF(128, y - 12))
-        painter.setPen(Qt.PenStyle.NoPen)
-        for index in range(3):
-            x = 38 + index * 22
-            blade = QPainterPath(QPointF(x, 65))
-            blade.cubicTo(x + 7, 45, x + 8, 20, x + 26, 6)
-            blade.cubicTo(x + 17, 33, x + 18, 45, x, 65)
-            gradient = QLinearGradient(x, 8, x + 20, 65)
-            gradient.setColorAt(0, QColor("#ddd0b7"))
-            gradient.setColorAt(0.5, QColor("#957e86"))
-            gradient.setColorAt(1, QColor("#47344f"))
-            painter.fillPath(blade, gradient)
+        self.icon.paint(painter, 4, 4, 48, 48)
         painter.end()
 
 

@@ -11,6 +11,7 @@ dependencies = ["pygame==2.6.1"]
 
 [project.optional-dependencies]
 desktop = ["PySide6>=6.8,<7"]
+packaging = ["PyInstaller>=6.16,<7"]
 
 [project.scripts]
 vega-inspect-titan = "vega.diagnostics.inspect_titan:main"
@@ -19,3 +20,6 @@ vega = "vega.app.__main__:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+"vega.app" = ["resources/*.ico", "resources/*.svg"]

@@ -30,6 +30,8 @@ class WindowTests(unittest.TestCase):
             window = VegaWindow(runtime, SettingsStore(Path(directory) / "settings.json"))
             window.show()
             app.processEvents()
+            self.assertEqual(window.windowTitle(), "Vega")
+            self.assertFalse(window.windowIcon().pixmap(16, 16).isNull())
             self.assertTrue(window.mute.isChecked())
             window.settle.setValue(6)
             self.assertEqual(runtime.pipeline.recognizer.settle_seconds, 0.006)

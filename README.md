@@ -48,6 +48,63 @@ Settle time and volume save to `%LOCALAPPDATA%\ProjectVega\settings.json`.
 Mute permission is never saved. The future primary output remains MIDI to a
 DAW/VST, independently of this optional preview.
 
+## Windows application build and shortcuts
+
+The editable development launch above still works. To build a console-free
+Windows application, install the separate build tools once, then build:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -e ".[desktop,packaging]"
+.\scripts\build-windows.ps1
+```
+
+Output: `dist\Vega\Vega.exe`. Keep the entire `dist\Vega` folder together;
+its `_internal` directory contains Qt, SDL, Python, and the application data.
+No Python installation is needed to run that packaged folder. Build on
+Windows using Python 3.13. Generated build outputs stay out of Git.
+
+Install per user and create **Vega** desktop and Start Menu shortcuts:
+
+```powershell
+.\scripts\install-local.ps1
+```
+
+Or use `.\scripts\install-local.ps1 -Build` to build first. Normal use is then
+double-clicking **Vega**, with no terminal. The shortcuts launch `Vega.exe`
+directly and use its icon. Installation lives beneath
+`%LOCALAPPDATA%\Programs\Vega\releases\<build-hash>`; updates get separate
+folders so Qt/SDL DLLs cannot mix across builds. Close the installed Vega
+before updating. Previous builds remain until uninstall. A build already
+installed is reported rather than overwritten.
+
+Remove the installed copies and matching shortcuts:
+
+```powershell
+.\scripts\uninstall-local.ps1
+```
+
+Uninstall removes only manifest-listed app files and matching Vega shortcuts.
+It preserves `%LOCALAPPDATA%\ProjectVega` settings and unlisted files. No admin
+rights, system-wide settings, updater, or installer framework are involved.
+
+The original claw-and-six-strings icon has **no star or lettering**. Its SVG
+source and seven-size ICO live in `src/vega/app/resources/`. The build regenerates
+the ICO and uses it for the executable and Qt window/taskbar identity. The
+UI deliberately uses dated plum Aero caption strips, etched borders, gloss,
+Segoe UI, and a conventional status bar without decorative taglines.
+
+Optional build verification:
+
+```powershell
+.\scripts\smoke-windows.ps1
+.\tests\test_windows_helpers.ps1
+```
+
+The smoke check starts and closes the actual executable, checks its GUI
+subsystem, resources, mute state, and device status, and saves a report under
+`build`. It does not change personal settings. The build is unsigned; Windows
+may show its usual downloaded-app reputation prompt when shared with another PC.
+
 In PC+DP mode, horizontal lever movement starts LEFT or RIGHT strums; the
 vertical position marks them FULL (down), NORMAL (center), or STRICT (up).
 Returning horizontally to x=0 rearms the next stroke even if up/down remains
