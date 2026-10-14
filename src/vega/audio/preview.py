@@ -1,94 +1,54 @@
-"""Preview-only pitches and triangle tones, with a replaceable audio backend."""
+"""Triangle audition of the shared musical plan, with a replaceable backend."""
 
 from __future__ import annotations
 
 import math
 from array import array
-from dataclasses import dataclass
+from functools import lru_cache
 from typing import Protocol
 
-from vega.model import StrumCharacter, StrumDirection
-from vega.music.strum import StrumGesture
+from vega.music.plan import StrumPlan
 from vega.settings import DEFAULT_PREVIEW_VOLUME, bounded
 
-
-@dataclass(frozen=True)
-class PreviewProfile:
-    pitches: tuple[int, ...]
-    spacing: float
-    duration: float
-    attack: float
-    octave_mix: float = 0.12
-
-
-# Fixed E-major audition pitches only. These never interpret held fingerings
-# and do not constrain the future guitar engine or its direction conventions.
-PREVIEW_PROFILES = {
-    StrumCharacter.FULL: PreviewProfile((40, 47, 52, 56, 59, 64), 0.012, 0.80, 0.0025, 0.16),
-    StrumCharacter.NORMAL: PreviewProfile((47, 52, 56, 59), 0.009, 0.60, 0.002),
-    StrumCharacter.STRICT: PreviewProfile((56, 59, 64), 0.006, 0.35, 0.0015, 0.08),
-}
-
-# Each complete strum is one mixer voice, including all delayed note onsets.
-# Even three perfectly aligned peaks at volume=1 stay below full scale.
+# Six individual string channels per strum, three overlapping strum groups.
 MAX_PREVIEW_VOICES = 3
 STRUM_PEAK = 0.30
-
-
-@dataclass(frozen=True)
-class PreviewNote:
-    pitch: int
-    offset: float
-
-
-@dataclass(frozen=True)
-class PreviewStrum:
-    character: StrumCharacter
-    direction: StrumDirection
-    notes: tuple[PreviewNote, ...]
-
-
-def preview_strum(character: StrumCharacter, direction: StrumDirection) -> PreviewStrum:
-    profile = PREVIEW_PROFILES[character]
-    pitches = profile.pitches if direction is StrumDirection.RIGHT else tuple(reversed(profile.pitches))
-    return PreviewStrum(character, direction, tuple(
-        PreviewNote(pitch, index * profile.spacing) for index, pitch in enumerate(pitches)
-    ))
 
 
 def triangle(phase: float) -> float:
     return 1.0 - 4.0 * abs((phase % 1.0) - 0.5)
 
 
-def render_strum(strum: PreviewStrum, sample_rate: int = 44100) -> bytes:
-    """Pre-render note offsets, then peak-normalize the entire strum once.
+@lru_cache(maxsize=8)
+def _envelope(duration: float, sample_rate: int) -> tuple[float, ...]:
+    count = round(sample_rate * duration)
+    return tuple(min(1, i / (sample_rate * .0025)) * math.exp(-3 * i / count)
+                 * min(1, (count - 1 - i) / (sample_rate * .025)) for i in range(count))
 
-    No live note scheduling or limiter callback. A triangle foundation with
-    quiet sine harmonics and a slower decay adds attack and body. The bounded
-    mixer voice count is part of this gain contract, not an arbitrary setting.
-    """
-    profile = PREVIEW_PROFILES[strum.character]
-    count = round(sample_rate * profile.duration)
-    mixed = [0.0] * (count + round(strum.notes[-1].offset * sample_rate))
+
+def render_note(note: int, duration: float, sample_rate: int = 44100) -> bytes:
+    """PCM at a bounded per-string gain. Built before live polling begins."""
+    frequency = 440 * 2 ** ((note - 69) / 12)
+    gain = 32767 * STRUM_PEAK / 6
+    return array("h", (round(triangle(i * frequency / sample_rate) * env * gain)
+                       for i, env in enumerate(_envelope(duration, sample_rate)))).tobytes()
+
+
+def render_strum(strum: StrumPlan, sample_rate: int = 44100) -> bytes:
+    """Offline reference renderer for deterministic tests, not the live loop."""
+    count = max((round(n.offset * sample_rate) + round(n.duration * sample_rate) for n in strum.notes), default=0)
+    mixed = [0.0] * count
     for note in strum.notes:
         offset = round(note.offset * sample_rate)
-        frequency = 440 * 2 ** ((note.pitch - 69) / 12)
-        for index in range(count):
-            t = index / sample_rate
-            phase = t * frequency
-            wave = triangle(phase) + profile.octave_mix * math.sin(4 * math.pi * phase)
-            wave += 0.045 * math.sin(6 * math.pi * phase) * math.exp(-t / 0.035)
-            envelope = min(1.0, t / profile.attack) * math.exp(-3 * t / profile.duration)
-            envelope *= min(1.0, (count - 1 - index) / (sample_rate * 0.025))
-            mixed[offset + index] += wave * envelope
-    peak = max(abs(sample) for sample in mixed)
-    gain = 32767 * STRUM_PEAK / peak if peak else 0
-    return array("h", (round(sample * gain) for sample in mixed)).tobytes()
+        samples = array("h", render_note(note.note, note.duration, sample_rate))
+        for i, sample in enumerate(samples):
+            mixed[offset + i] += sample * note.velocity / 127
+    return array("h", (round(sample) for sample in mixed)).tobytes()
 
 
 class AudioBackend(Protocol):
     def initialize(self) -> None: ...
-    def play(self, strum: PreviewStrum, volume: float) -> None: ...
+    def play(self, strum: StrumPlan, volume: float, now: float) -> None: ...
     def set_volume(self, volume: float) -> None: ...
     def stop(self) -> None: ...
     def close(self) -> None: ...
@@ -122,7 +82,7 @@ class PreviewSynth:
         try:
             self.backend.close()
         except Exception:
-            pass  # Original backend failure is the useful status.
+            pass
 
     def set_muted(self, muted: bool) -> None:
         self.muted = bool(muted) or not self.available
@@ -137,13 +97,20 @@ class PreviewSynth:
             except Exception as exc:
                 self._failed(exc)
 
-    def play(self, gesture: StrumGesture) -> None:
+    def play(self, plan: StrumPlan, now: float) -> None:
         if self.muted or not self.available:
             return
         try:
-            self.backend.play(preview_strum(gesture.character, gesture.direction), self.volume)
+            self.backend.play(plan, self.volume, now)
         except Exception as exc:
             self._failed(exc)
+
+    def tick(self, now: float) -> None:
+        if self.available and hasattr(self.backend, "tick"):
+            try:
+                self.backend.tick(now)
+            except Exception as exc:
+                self._failed(exc)
 
     def panic(self) -> None:
         if self.available:

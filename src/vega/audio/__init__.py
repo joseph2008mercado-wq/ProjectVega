@@ -1,1 +1,1 @@
-"""Optional audition audio; independent of future MIDI and guitar voicing."""
+"""Optional audition audio; consumes shared plans without interpreting harmony."""

@@ -63,13 +63,20 @@ class FaceBank(QWidget):
     def __init__(self) -> None:
         super().__init__()
         self.faces = frozenset()
-        self.setMinimumSize(320, 164)
+        self.bank = 1
+        self.setMinimumSize(260, 150)
+        self.setToolTip("Left to right: FACE_1–FACE_4, then FACE_5–FACE_8")
         self.setAccessibleName("Held face controls: none")
 
-    def set_faces(self, faces: frozenset[FaceControl]) -> None:
-        if faces != self.faces:
+    @property
+    def fret_labels(self) -> tuple[int, ...]:
+        return tuple((self.bank - 1) * 8 + i for i in range(1, 9))
+
+    def set_faces(self, faces: frozenset[FaceControl], bank: int = 1) -> None:
+        if faces != self.faces or bank != self.bank:
             self.faces = faces
-            self.setAccessibleName("Held face controls: " + (", ".join(f.name for f in sorted(faces, key=lambda f: f.value)) or "none"))
+            self.bank = bank
+            self.setAccessibleName("Held frets: " + (", ".join(str((bank - 1) * 8 + f.value) for f in sorted(faces, key=lambda f: f.value)) or "open"))
             self.update()
 
     def paintEvent(self, event) -> None:
@@ -95,9 +102,7 @@ class FaceBank(QWidget):
             painter.setBrush(gradient)
             painter.drawEllipse(center, radius, radius)
             painter.setPen(QColor("#f2e4c8" if active else "#d6c9de"))
-            painter.drawText(QRectF(center.x() - radius, center.y() - radius, radius * 2, radius * 2), Qt.AlignmentFlag.AlignCenter, str(index + 1))
-            painter.setPen(QColor("#e0c99d" if active else "#a899b2"))
-            painter.drawText(QRectF(center.x() - 38, center.y() + radius + 2, 76, 18), Qt.AlignmentFlag.AlignCenter, face.name)
+            painter.drawText(QRectF(center.x() - radius, center.y() - radius, radius * 2, radius * 2), Qt.AlignmentFlag.AlignCenter, str(self.fret_labels[index]))
         painter.end()
 
 
@@ -105,7 +110,7 @@ class LeverView(QWidget):
     def __init__(self) -> None:
         super().__init__()
         self.position = (0, 0)
-        self.setMinimumSize(310, 212)
+        self.setMinimumSize(280, 212)
         self.setAccessibleName("Lever centered")
 
     def set_position(self, x: int, y: int) -> None:

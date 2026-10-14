@@ -81,6 +81,11 @@ class StrumRecognizer:
         self._pending = None
         return [gesture]
 
+    @property
+    def has_pending(self) -> bool:
+        """Runtime can defer bank changes without altering a captured stroke."""
+        return self._pending is not None
+
     def reset(self) -> None:
         """Drop a pending stroke when its controller disconnects."""
         self._previous_x = 0

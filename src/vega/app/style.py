@@ -29,7 +29,10 @@ QSlider::sub-page:horizontal { background: #9b8465; border-radius: 3px; }
 QSlider::handle:horizontal { background: qlineargradient(x1:0,y1:0,x2:0,y2:1,
     stop:0 #e2d3bc, stop:1 #897563); border: 1px solid #d2b994;
     width: 12px; margin: -5px 0; border-radius: 4px; }
-QDoubleSpinBox { padding: 5px 8px; selection-background-color: #6b566c; }
+QDoubleSpinBox, QSpinBox, QComboBox { padding: 5px 8px; selection-background-color: #6b566c;
+    color: #e3d9e8; background: #211a29; border: 1px solid #75617f; border-radius: 3px; }
+QComboBox QAbstractItemView { background: #211a29; color: #e3d9e8;
+    selection-background-color: #6b566c; }
 QToolTip { background: #32283d; color: #eee1ca; border: 1px solid #99846d; }
 QScrollArea { background: #17121f; }
 QScrollBar:vertical { background: #191320; width: 12px; margin: 0; }

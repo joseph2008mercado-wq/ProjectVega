@@ -2,6 +2,7 @@
 
 import argparse
 import sys
+import time
 from pathlib import Path
 
 
@@ -51,7 +52,9 @@ def main(argv: list[str] | None = None) -> int:
         store = SmokeSettingsStore()
     settings = store.load()
     preview = PreviewSynth(PygameAudioBackend(), settings.preview_volume)
-    runtime = VegaRuntime(DesktopInputSource(device_index=args.device_index), preview, settings)
+    runtime = VegaRuntime(DesktopInputSource(device_index=args.device_index), preview, settings,
+                          clock=time.perf_counter)
+    runtime.midi.refresh()
     window = VegaWindow(runtime, store)
     window.show()
     if app.platformName() == "windows":

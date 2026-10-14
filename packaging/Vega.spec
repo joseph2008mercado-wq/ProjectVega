@@ -29,7 +29,7 @@ a = Analysis(
     [str(root / "packaging" / "windows-entry.py")],
     pathex=[str(root / "src")],
     datas=[(str(icon), "vega/app/resources")],
-    hiddenimports=[],
+    hiddenimports=["mido.backends.rtmidi", "pygame.midi"],
     excludes=["pytest", "unittest", "pygame.tests", "pygame.examples", "tkinter"],
     noarchive=False,
 )

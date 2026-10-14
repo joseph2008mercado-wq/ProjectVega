@@ -19,13 +19,16 @@ class SettingsTests(unittest.TestCase):
         self.assertEqual(Settings(preview_volume=-2).preview_volume, 0)
         self.assertEqual(Settings(settle_ms=50).settle_ms, 20)
         self.assertEqual(Settings(settle_ms=float("nan")).settle_ms, 8)
+        self.assertEqual(Settings().spread_ms, 10)
+        self.assertEqual(Settings(spread_ms=100).spread_ms, 30)
+        self.assertEqual(Settings(spread_ms=float("nan")).spread_ms, 10)
 
     def test_round_trip_excludes_mute(self):
         with tempfile.TemporaryDirectory() as directory:
             store = SettingsStore(Path(directory) / "nested" / "settings.json")
             store.save(Settings(12, 0.6))
             self.assertEqual(store.load(), Settings(12, 0.6))
-            self.assertEqual(set(json.loads(store.path.read_text())), {"settle_ms", "preview_volume"})
+            self.assertEqual(set(json.loads(store.path.read_text())), {"settle_ms", "preview_volume", "spread_ms"})
             store.path.write_text('{"settle_ms": 6, "preview_volume": 0.7, "muted": false}')
             self.assertEqual(store.load(), Settings(6, 0.7))
 

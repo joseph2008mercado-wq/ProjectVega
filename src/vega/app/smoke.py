@@ -40,6 +40,12 @@ def write_report(window, destination: Path) -> None:
         "device_name": state.device.name,
         "device_status": state.device.detail,
         "audio_status": state.audio_status,
+        "bank": state.selection.bank,
+        "open_strings": [s.note for s in state.voicing.strings],
+        "midi_ports": list(state.midi_ports),
+        "midi_status": state.midi_status,
+        "window_size": [window.width(), window.height()],
+        "device_pixel_ratio": window.devicePixelRatioF(),
         "console_attached": console,
     }
     with destination.open("x", encoding="utf-8") as file:

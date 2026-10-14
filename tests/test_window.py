@@ -12,6 +12,67 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 @unittest.skipUnless(importlib.util.find_spec("PySide6"), "desktop extra not installed")
 class WindowTests(unittest.TestCase):
+    def test_geometry_policy_at_target_resolutions_and_dpi(self):
+        from vega.app.geometry import initial_size
+        for width, height in ((1280, 720), (1366, 768), (1920, 1080)):
+            for scale in (1, 1.25, 1.5):
+                available = (int(width / scale), int((height - 48) / scale))
+                w, h = initial_size(*available)
+                self.assertLess(w, available[0])
+                self.assertLess(h, available[1])
+
+    def test_music_midi_and_scroll_access_at_narrow_sizes(self):
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+        from PySide6.QtWidgets import QApplication, QScrollArea
+        from PySide6.QtCore import QPoint, QRect
+        from vega.app.window import VegaWindow
+        from vega.audio.preview import PreviewSynth
+        from vega.input.events import RawButtonEvent
+        from vega.runtime import DeviceStatus, VegaRuntime
+        from vega.midi.output import MidiOutput
+        from vega.settings import Settings, SettingsStore
+        from test_preview import FakeAudio
+        from test_runtime import FakeSource
+        from test_midi import FakeMidi
+        app = QApplication.instance() or QApplication([])
+        with tempfile.TemporaryDirectory() as directory:
+            source = FakeSource()
+            runtime = VegaRuntime(source, PreviewSynth(FakeAudio()), Settings(), MidiOutput(FakeMidi()))
+            window = VegaWindow(runtime, SettingsStore(Path(directory) / "settings.json"))
+            window.timer.stop()
+            window.show()
+            app.processEvents()
+            window.bank_next.click()
+            self.assertEqual(window.faces.fret_labels, tuple(range(9, 17)))
+            self.assertEqual(window.bank_label.text(), "9–16")
+            source.events = [DeviceStatus(True), RawButtonEvent(2, True, 1, 1)]
+            runtime.tick(1)
+            window.refresh()
+            self.assertEqual(window.held_frets.text(), "Held frets: 9")
+            self.assertIn("C#", window.harmony.text())
+            self.assertTrue(all(w.text() for w in window.string_labels))
+            window.midi_refresh.click()
+            self.assertEqual(window.midi_port.count(), 3)
+            window.connect_port(1)
+            self.assertIn("Connected", window.midi_status.text())
+            window.midi_channel.setValue(3)
+            self.assertEqual(runtime.midi.channel, 3)
+            window.spread.setValue(12)
+            self.assertEqual(runtime.settings.spread_ms, 12)
+            scroll = window.centralWidget()
+            self.assertIsInstance(scroll, QScrollArea)
+            self.assertTrue(scroll.widgetResizable())
+            for width, height in ((900, 940), (860, 600), (780, 580), (640, 440), (480, 350), (360, 300)):
+                window.resize(width, height)
+                for _ in range(3): app.processEvents()
+                self.assertEqual(scroll.horizontalScrollBar().maximum(), 0, (width, height))
+                for widget in (window.bank_next, window.settle, window.spread, window.midi_port, window.midi_panic):
+                    scroll.ensureWidgetVisible(widget)
+                    app.processEvents()
+                    rect = QRect(widget.mapTo(scroll.viewport(), QPoint(0, 0)), widget.size())
+                    self.assertTrue(scroll.viewport().rect().contains(rect), (width, height, widget.objectName(), rect))
+            window.close()
+
     def test_controls_update_runtime_and_close_cleanly(self):
         os.environ["QT_QPA_PLATFORM"] = "offscreen"
         from PySide6.QtWidgets import QApplication
