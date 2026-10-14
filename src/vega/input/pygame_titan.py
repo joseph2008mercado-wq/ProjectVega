@@ -51,6 +51,8 @@ class PygameTitanInput:
 
         if self.requested_index is not None:
             if not 0 <= self.requested_index < len(devices):
+                for device in devices:
+                    device.quit()
                 raise ValueError(f"Device index {self.requested_index} is not connected.")
             selected_index = self.requested_index
         else:
@@ -64,6 +66,8 @@ class PygameTitanInput:
                 selected_index = 0
             else:
                 choices = ", ".join(f"{i}: {device.get_name()}" for i, device in enumerate(devices))
+                for device in devices:
+                    device.quit()
                 raise ValueError(f"Select the Titan with --device-index. Detected: {choices}")
 
         selected = devices[selected_index]

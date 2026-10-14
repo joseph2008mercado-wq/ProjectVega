@@ -4,7 +4,7 @@
 
 Project Vega is a Windows-first, Python 3.13 application that reads a Qanba Titan arcade fight stick and turns performance gestures into MIDI for a DAW. The Titan remains usable as a normal game controller: Vega reads its controller events and does not remap, suppress, or replace them. Whether simultaneous access works with the actual Titan mode, driver, and games must be verified on hardware.
 
-The first instrument is **Vega Guitar**. Eight face buttons represent a held fingering. The joystick represents the picking hand: its horizontal component starts a LEFT or RIGHT stroke, while its vertical component selects FULL, NORMAL, or STRICT strum character. A recognized stroke captures the current fingering, resolves its harmony, chooses a six-string guitar voicing, and schedules ordered MIDI notes. The DAW receives MIDI; a VST or other software instrument produces sound. Vega itself is not an audio engine or a guitar sample library.
+The first instrument is **Vega Guitar**. Eight face buttons represent a held fingering. The joystick represents the picking hand: its horizontal component starts a LEFT or RIGHT stroke, while its vertical component selects FULL, NORMAL, or STRICT strum character. The future musical engine will resolve a recognized stroke's harmony, choose a six-string guitar voicing, and schedule ordered MIDI notes. The DAW receives MIDI; a VST or other software instrument produces sound. Vega includes an optional preview synth for audition/debugging, independent of this primary future output.
 
 The first release should make a small, playable set of fingerings reliable. It should not attempt to infer arbitrary chords from all 256 button combinations or simulate every physical guitar technique.
 
@@ -70,7 +70,7 @@ This is a dependency diagram, not a mandate for one Python class per box. The fi
 | `MidiOutput` | Semantic note-on, note-off, panic | Opens an existing named MIDI output port and sends messages. A fake implementation supports tests. |
 | `VegaRuntime` | Adapters, config, clock | Starts and stops components, connects the selected device/port, owns the loop, and coordinates recovery. |
 
-The future settings interface edits validated configuration and displays status. It is a separate process or thin client of the background runtime, never the owner of the input loop or active notes. Start without a GUI; a configuration file and readable logs are enough for the prototype.
+The optional desktop interface edits validated configuration and displays runtime snapshots. Its Qt timer hosts the current input loop, while the GUI-independent runtime owns pipeline state. A later background host can run that same runtime independently of the panel.
 
 ## Data flow and important data structures
 
@@ -160,7 +160,7 @@ The runtime is a normal long-running foreground process for early development, w
 4. Report device/port connection state, accepted gestures, and errors without logging every event during normal play.
 5. On Titan disconnect or process stop, cancel future notes and release active notes; on reconnect, start from a neutral physical state.
 
-The future settings UI can edit configuration atomically and request a safe reload between gestures. Do not build a GUI or a background service before the input mapping and DAW path are proven. A single runtime instance should own the controller and MIDI output; a second instance should fail clearly rather than create duplicate notes.
+The current desktop UI edits settle time and preview volume live and saves settings atomically. Background service/tray operation and MIDI are later stages. Each running app has one controller reader; run only one app/diagnostic at a time. Cross-process single-instance enforcement should precede the future MIDI runtime to prevent duplicate notes.
 
 ## Testing strategy
 
@@ -237,7 +237,7 @@ This is a proposed destination, not a request to create every file immediately. 
 ## Decisions pending further hardware and playing tests
 
 - Whether PC+DP input remains available while a game/controller tester has focus and whether all non-face controls should be mapped later.
-- Whether the 8 ms diagonal settle window feels right on hardware, including very quick taps, reversals, and focus changes.
+- Further tuning of the user-configurable settle window under different playing conditions; 8 ms is now the verified default on Windows 11 / Python 3.13.
 - LS/RS lever mappings and other Titan system-switch modes, if support is needed.
 - The musical string-order assignment for LEFT and RIGHT; how FULL and STRICT affect later coverage, timing, or velocity.
 - Measured end-to-end latency, virtual-port setup, DAW routing, and whether a timing worker is justified.
@@ -246,10 +246,11 @@ This is a proposed destination, not a request to create every file immediately. 
 
 1. **Titan discovery — done:** the standalone `inspect_titan.py` captured PC+DP observations; the verified findings above are sufficient for this stage. The diagnostic remains available for later modes.
 2. **Symbolic input and gesture slice — done:** the PC+DP profile, physical state, and deterministic LEFT/RIGHT recognizer are implemented and tested without pygame in the musical layer.
-3. **Next: musical slice:** implement a small fingering/chord vocabulary, explicit guitar voicings, virtual strings, and pure strum plans using `StrumGesture`. Decide LEFT/RIGHT musical ordering from playing tests.
-4. **MIDI and DAW slice:** implement scheduler, Mido/RtMidi output to a configured loopback port, safe note cleanup, a test-note command, and one DAW smoke test.
-5. **Playable runtime:** connect the pygame adapter to the input pipeline and MIDI path; handle startup, disconnects, errors, logs, and latency measurement. Refine the settle window from real playing.
-6. **Usability and extension:** add configuration validation, more chord/voicing presets, directional dynamics, packaging/background launch, and only then a settings UI or native Windows endpoint if warranted.
+3. **Desktop audition slice — implemented:** optional PySide6 view, live configurable settling, persistent preferences, and muted-by-default preview tones downstream of the verified gesture pipeline. Real desktop/audio latency testing remains.
+4. **Next: musical slice:** implement a small fingering/chord vocabulary, explicit guitar voicings, virtual strings, and pure strum plans using `StrumGesture`. Decide LEFT/RIGHT musical ordering from playing tests.
+5. **MIDI and DAW slice:** implement scheduler, Mido/RtMidi output to a configured loopback port, safe note cleanup, a test-note command, and one DAW smoke test.
+6. **Playable runtime:** connect the input pipeline to MIDI; measure end-to-end latency and refine performance.
+7. **Usability and extension:** more chord/voicing presets, directional dynamics, packaging/background launch, and a native Windows endpoint if warranted.
 
 ## Beginner-friendly summary
 
@@ -258,12 +259,28 @@ Vega reads the Titan like a game controller. A small PC+DP profile gives each re
 ## Main unresolved technical questions
 
 1. Can pygame keep receiving PC+DP events while another application uses the Titan normally, including when Vega is not focused?
-2. Does the 8 ms diagonal settle window feel right in real play, especially for fast taps and reversals?
+2. How does the verified 8 ms default feel with the Qt event loop and preview audio, and which user-selected window works best for other playing styles?
 3. Which musical string order should LEFT and RIGHT select, and what should FULL and STRICT eventually change?
 4. Which loopback endpoint works reliably with the target DAW, and what timing does the full controller-to-sound path achieve?
 
 ## Completed input-stage boundary
 
-`inspect_titan.py` stays a raw hardware diagnostic. `TitanPcDpProfile` alone owns measured pygame IDs and axis normalization; `PhysicalState` and `StrumRecognizer` know only symbolic controls. `VegaInputPipeline` connects them and exposes `on_raw(event)` plus `flush(now)` for a future runtime. This stage intentionally contains no chord vocabulary, voicing, virtual-string simulation, MIDI output, or GUI.
+`inspect_titan.py` stays a raw hardware diagnostic. `TitanPcDpProfile` alone owns measured pygame IDs and axis normalization; `PhysicalState` and `StrumRecognizer` know only symbolic controls. `VegaInputPipeline` connects them and exposes `on_raw(event)` plus `flush(now)` for the runtime. This layer contains no chord vocabulary, voicing, virtual-string simulation, MIDI output, audio, or GUI imports.
 
 The live `inspect_gestures.py` diagnostic now uses a pygame input adapter to feed that same production pipeline. It prints symbolic state and finalized gestures, and calls `flush(now)` on every event-loop pass so an 8 ms pending stroke completes even when no further SDL event arrives. `--settle-ms` allows comparison on the real Titan; the window remains a playing-test decision. The older raw inspector remains separate for future hardware discovery.
+
+## Desktop runtime and optional audition
+
+Real Windows 11 / Python 3.13 testing confirmed normal rapid strokes, FULL lower arcs, STRICT upper arcs, quarter circles, horizontal rearming, vertical-only silence, fingering snapshots, and FACE_7/8 normalization at 8 ms. The profile and recognizer remain unchanged.
+
+- `input/desktop_source.py` pumps the existing `PygameTitanInput`, with one hidden SDL window. Missing hardware stays in a waiting state; reconnects use the selected controller GUID. Initial ambiguous selection can be resolved with `--device-index`. Held controls should be released before connecting; the current adapter observes events rather than polling a baseline.
+- `runtime.py` owns the production pipeline, device status, last gesture, and optional preview. Its `tick(now)` accepts raw input and always flushes settling, including idle ticks. Frozen `ViewState` snapshots expose symbolic state to a view. No Qt dependency exists here.
+- `app/` is an optional PySide6 control surface: a 2 ms precise Qt timer calls one bounded polling pass on the main thread. SDL setup/pumping stays on that thread; no permanent loop, sleeps, or new input worker is added. Widgets repaint only when state changes. The 140 ms highlight is cosmetic and never delays audio or gesture delivery. Qt timers are best-effort, not real-time deadlines ([Qt timer accuracy](https://doc.qt.io/qtforpython-6/PySide6/QtCore/QTimer.html)).
+- The settle control writes `pipeline.recognizer.settle_seconds` directly, from 0–20 ms. A pending stroke adopts the new deadline on the next flush without clearing horizontal state or duplicating the stroke. There is no second GUI settle delay.
+- `audio/preview.py` defines the small replaceable preview interface and explicitly preview-only pitches/envelopes. A finalized `StrumGesture` goes to both the view and preview once. FULL uses a lower triangle with a small octave-triangle blend and 480 ms decay envelope; NORMAL uses a 300 ms triangle; STRICT uses a higher triangle with a 160 ms envelope and shorter attack. Fingering and direction have no audio meaning yet.
+- `audio/pygame_backend.py` renders three finite PCM buffers once, then uses SDL's mixer for asynchronous playback with eight bounded voices and a requested 256-sample buffer. Panic stops active channels; mute also stops channels. No Python audio callback, final guitar voicing, note scheduler, or virtual strings exist. Mixer initialization/playback failure is contained and reported to the view. Restart retries audio. Actual device buffering and latency need measurement ([pygame mixer](https://www.pygame.org/docs/ref/mixer.html)).
+- `settings.py` saves only settle time and volume under `%LOCALAPPDATA%/ProjectVega/settings.json`, with validated bounds and an atomic replacement. The GUI debounces disk writes and saves on close. Mute state is never persisted; every new preview instance starts muted. Settings failures remain visible without terminating input.
+
+The optional preview never defines future harmony, MIDI notes, or output routing. The eventual MIDI consumer will receive gestures independently. Closing the panel currently closes the runtime, controller handles, and preview audio; background/tray operation remains a future host for the same GUI-independent runtime.
+
+New modules are `runtime.py`, `settings.py`, `input/desktop_source.py`, `audio/{preview,pygame_backend}.py`, and `app/{__main__,window,widgets,style}.py`. Automated tests use fake input/audio and clocks; the optional Qt test renders offscreen. Hardware playing feel, Windows focus behavior with the hidden SDL window, high-DPI layout, and sound-device latency still require real-machine checks.

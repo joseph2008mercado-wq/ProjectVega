@@ -133,6 +133,38 @@ class PygameAdapterTests(unittest.TestCase):
         self.assertIn("fingering=[FACE_1]", strums[0])
         self.assertTrue(current_device[0].closed)
 
+    def test_desktop_missing_startup_then_connect_disconnect_reconnect(self) -> None:
+        with patch.dict(sys.modules, {"pygame": fake_pygame}):
+            desktop_module = importlib.import_module("vega.input.desktop_source")
+        from vega.runtime import DeviceStatus
+
+        count = [0]
+        queued = []
+        display = types.SimpleNamespace(init=lambda: None, set_mode=lambda *args: None, quit=lambda: None)
+        devices = types.SimpleNamespace(get_count=lambda: count[0], Joystick=lambda i: current_device[0],
+                                       init=lambda: None, quit=lambda: None)
+        with patch.object(fake_pygame, "display", display), \
+             patch.object(fake_pygame, "joystick", devices), \
+             patch.object(fake_pygame, "HIDDEN", 0, create=True), \
+             patch.object(fake_pygame, "event", types.SimpleNamespace(get=lambda: queued.copy()), create=True):
+            source = desktop_module.DesktopInputSource()
+            missing = source.poll(0)
+            self.assertIsInstance(missing[0], DeviceStatus)
+            self.assertFalse(missing[0].connected)
+            self.assertEqual(source.poll(0.1), [])
+            count[0] = 1
+            current_device[0] = FakeJoystick(40)
+            self.assertTrue(source.poll(0.6)[0].connected)
+            queued[:] = [event(fake_pygame.JOYDEVICEREMOVED, instance_id=40)]
+            self.assertFalse(source.poll(1)[0].connected)
+            current_device[0] = FakeJoystick(41)
+            queued[:] = [event(fake_pygame.JOYDEVICEADDED, device_index=0)]
+            self.assertTrue(source.poll(2)[0].connected)
+            queued[:] = [event(fake_pygame.JOYBUTTONDOWN, instance_id=41, button=2)]
+            self.assertTrue(source.poll(3)[0].pressed)
+            source.close()
+            self.assertTrue(current_device[0].closed)
+
 
 if __name__ == "__main__":
     unittest.main()

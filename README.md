@@ -1,10 +1,48 @@
 # Project Vega
 
-The standalone Qanba Titan input inspector records what pygame/SDL exposes on
-Windows. A separate, unit-tested PC+DP input layer now translates the verified
-main controls and recognizes symbolic strum gestures. It does not interpret
-chords or send MIDI. See [ARCHITECTURE.md](ARCHITECTURE.md) for the mapping and
-planned instrument.
+A Windows 11 / Python 3.13 desktop control panel for Qanba Titan gestures,
+with optional triangle-based preview audio. The PC+DP input profile and 8 ms
+gesture behavior have been validated on real hardware. MIDI, FL Studio/VST
+output, and final chord/voicing interpretation are not implemented yet.
+See [ARCHITECTURE.md](ARCHITECTURE.md) for the mapping and planned instrument.
+
+## Install / update and launch the desktop app
+
+Run from the repository root in PowerShell. Create the environment once:
+
+```powershell
+py -3.13 -m venv .venv
+```
+
+Install or update desktop dependencies, then launch:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -e ".[desktop]"
+.\.venv\Scripts\python.exe -m vega.app
+```
+
+Set the Titan's physical switches to **PC + DP**, release the buttons, and
+center the lever before connecting. Vega stays open if the controller is
+missing or unplugged and resumes when it reconnects. If several controllers
+make selection ambiguous, launch with `--device-index N` using the index
+shown in the waiting status. Run only one Vega app/diagnostic at a time.
+
+The plum-glass panel shows held FACE controls, the eight-way lever, and the
+last strum's immutable fingering snapshot. Adjust the production settle window
+live from 0–20 ms, with shortcuts for 4/6/8/10/12 ms. **8 ms is the current
+verified default, still adjustable and experimental.** A change also updates
+the deadline of an already pending gesture at the next input tick.
+
+Preview audio **starts muted on every launch**. Click to unmute for short
+audition tones: FULL is lower, richer, and longer; NORMAL is neutral;
+STRICT is higher and tighter. These fixed preview pitches ignore fingering
+and direction and are not a guitar chord vocabulary. Mute stops active audio;
+Panic stops current voices while allowing later gestures if still unmuted.
+Audio failure leaves input visualization running; restart Vega to retry audio.
+
+Settle time and volume save to `%LOCALAPPDATA%\ProjectVega\settings.json`.
+Mute permission is never saved. The future primary output remains MIDI to a
+DAW/VST, independently of this optional preview.
 
 In PC+DP mode, horizontal lever movement starts LEFT or RIGHT strums; the
 vertical position marks them FULL (down), NORMAL (center), or STRICT (up).
