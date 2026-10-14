@@ -33,10 +33,14 @@ live from 0–20 ms, with shortcuts for 4/6/8/10/12 ms. **8 ms is the current
 verified default, still adjustable and experimental.** A change also updates
 the deadline of an already pending gesture at the next input tick.
 
-Preview audio **starts muted on every launch**. Click to unmute for short
-audition tones: FULL is lower, richer, and longer; NORMAL is neutral;
-STRICT is higher and tighter. These fixed preview pitches ignore fingering
-and direction and are not a guitar chord vocabulary. Mute stops active audio;
+Preview audio **starts muted on every launch**. Unmute for triangle-based
+multi-note strums: FULL uses six notes with 12 ms spacing and longer decay;
+NORMAL uses four with 9 ms spacing; STRICT uses three higher notes with 6 ms
+spacing and shorter decay. RIGHT sweeps low to high; LEFT reverses the order.
+The fixed preview-only E-major pitches ignore fingering. Gain is stronger,
+with headroom for three overlapping strums; the oldest is replaced when full.
+New settings default to 65% volume; your saved volume is preserved.
+Mute stops active audio;
 Panic stops current voices while allowing later gestures if still unmuted.
 Audio failure leaves input visualization running; restart Vega to retry audio.
 

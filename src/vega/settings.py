@@ -9,6 +9,9 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 
 
+DEFAULT_PREVIEW_VOLUME = 0.65
+
+
 def bounded(value: object, low: float, high: float, default: float) -> float:
     try:
         number = float(value)
@@ -20,11 +23,11 @@ def bounded(value: object, low: float, high: float, default: float) -> float:
 @dataclass
 class Settings:
     settle_ms: float = 8.0
-    preview_volume: float = 0.35
+    preview_volume: float = DEFAULT_PREVIEW_VOLUME
 
     def __post_init__(self) -> None:
         self.settle_ms = bounded(self.settle_ms, 0, 20, 8)
-        self.preview_volume = bounded(self.preview_volume, 0, 1, 0.35)
+        self.preview_volume = bounded(self.preview_volume, 0, 1, DEFAULT_PREVIEW_VOLUME)
 
 
 def config_path() -> Path:
@@ -46,7 +49,7 @@ class SettingsStore:
             data = json.loads(self.path.read_text(encoding="utf-8"))
             if not isinstance(data, dict):
                 raise ValueError("expected a settings object")
-            return Settings(data.get("settle_ms", 8), data.get("preview_volume", 0.35))
+            return Settings(data.get("settle_ms", 8), data.get("preview_volume", DEFAULT_PREVIEW_VOLUME))
         except FileNotFoundError:
             return Settings()
         except (OSError, ValueError) as exc:

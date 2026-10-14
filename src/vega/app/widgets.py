@@ -2,22 +2,55 @@
 
 from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QColor, QFont, QLinearGradient, QPainter, QPainterPath, QPen
-from PySide6.QtWidgets import QWidget
+from PySide6.QtWidgets import QFrame, QWidget
 
 from vega.model import FaceControl
+
+
+class GlassPanel(QFrame):
+    """A clipped reflection and double rim give glass depth without OS blur."""
+
+    def paintEvent(self, event) -> None:
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        rect = QRectF(self.rect()).adjusted(1, 1, -1, -2)
+        shape = QPainterPath()
+        shape.addRoundedRect(rect, 7, 7)
+        painter.setPen(QPen(QColor(0, 0, 0, 120), 2))
+        painter.drawRoundedRect(rect.translated(0, 1), 7, 7)
+        surface = QLinearGradient(0, 0, self.width() * 0.35, self.height())
+        surface.setColorAt(0, QColor(87, 73, 98, 225))
+        surface.setColorAt(0.22, QColor(49, 38, 62, 235))
+        surface.setColorAt(0.65, QColor(26, 21, 35, 245))
+        surface.setColorAt(1, QColor(39, 29, 47, 235))
+        painter.fillPath(shape, surface)
+        painter.save()
+        painter.setClipPath(shape)
+        sheen = QLinearGradient(0, 0, 0, 56)
+        sheen.setColorAt(0, QColor(237, 224, 247, 35))
+        sheen.setColorAt(1, QColor(237, 224, 247, 0))
+        painter.fillRect(QRectF(0, 0, self.width(), 56), sheen)
+        painter.restore()
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.setPen(QPen(QColor(179, 159, 192, 105), 1))
+        painter.drawPath(shape)
+        painter.setPen(QPen(QColor(235, 222, 240, 32), 1))
+        painter.drawRoundedRect(rect.adjusted(1, 1, -1, -1), 6, 6)
+        painter.end()
 
 
 class VegaMark(QWidget):
     def __init__(self) -> None:
         super().__init__()
-        self.setFixedSize(140, 74)
-        self.setAccessibleName("Vega: abstract talons crossing six strings and a star")
+        self.setFixedSize(88, 48)
+        self.setAccessibleName("Vega: three abstract slashes crossing six strings")
 
     def paintEvent(self, event) -> None:
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.scale(0.63, 0.63)
         for index in range(6):
-            painter.setPen(QPen(QColor(178, 153, 114, 80 + index * 18), 1))
+            painter.setPen(QPen(QColor(180, 165, 145, 95), 1))
             y = 24 + index * 6
             painter.drawLine(QPointF(5, y), QPointF(128, y - 12))
         painter.setPen(Qt.PenStyle.NoPen)
@@ -31,11 +64,6 @@ class VegaMark(QWidget):
             gradient.setColorAt(0.5, QColor("#957e86"))
             gradient.setColorAt(1, QColor("#47344f"))
             painter.fillPath(blade, gradient)
-        painter.setPen(QPen(QColor("#f0dfbc"), 1.5))
-        painter.drawLine(86, 23, 86, 39)
-        painter.drawLine(78, 31, 94, 31)
-        painter.setBrush(QColor("#f0dfbc"))
-        painter.drawEllipse(QPointF(86, 31), 2, 2)
         painter.end()
 
 
@@ -62,9 +90,11 @@ class FaceBank(QWidget):
             center = QPointF(cell * (index % 4 + 0.5), 37 + (index // 4) * 74)
             active = face in self.faces
             gradient = QLinearGradient(center.x(), center.y() - radius, center.x(), center.y() + radius)
-            gradient.setColorAt(0, QColor("#e4d3b1" if active else "#574761"))
-            gradient.setColorAt(0.45, QColor("#a48b69" if active else "#302738"))
-            gradient.setColorAt(1, QColor("#746049" if active else "#1b1724"))
+            gradient.setColorAt(0, QColor("#baa88a" if active else "#88758f"))
+            gradient.setColorAt(0.12, QColor("#8c7a62" if active else "#584762"))
+            gradient.setColorAt(0.48, QColor("#675645" if active else "#403249"))
+            gradient.setColorAt(0.51, QColor("#3d3032" if active else "#241b2e"))
+            gradient.setColorAt(1, QColor("#6f5d4f" if active else "#43334e"))
             if active:
                 painter.setPen(QPen(QColor(216, 187, 140, 40), 7))
                 painter.setBrush(Qt.BrushStyle.NoBrush)
@@ -72,7 +102,7 @@ class FaceBank(QWidget):
             painter.setPen(QPen(QColor("#e0c99d" if active else "#6b5876"), 1))
             painter.setBrush(gradient)
             painter.drawEllipse(center, radius, radius)
-            painter.setPen(QColor("#241b1e" if active else "#c3b3ca"))
+            painter.setPen(QColor("#f2e4c8" if active else "#d6c9de"))
             painter.drawText(QRectF(center.x() - radius, center.y() - radius, radius * 2, radius * 2), Qt.AlignmentFlag.AlignCenter, str(index + 1))
             painter.setPen(QColor("#e0c99d" if active else "#a899b2"))
             painter.drawText(QRectF(center.x() - 38, center.y() + radius + 2, 76, 18), Qt.AlignmentFlag.AlignCenter, face.name)
@@ -105,10 +135,15 @@ class LeverView(QWidget):
         for (x, y), label in labels.items():
             active = self.position == (x, y)
             center = QPointF(cx + x * 46, cy - y * 46)
-            painter.setBrush(QColor("#ad9370" if active else "#302638"))
+            glass = QLinearGradient(0, center.y() - 16, 0, center.y() + 16)
+            glass.setColorAt(0, QColor("#b5a185" if active else "#6a5876"))
+            glass.setColorAt(0.48, QColor("#77654f" if active else "#42334f"))
+            glass.setColorAt(0.52, QColor("#493c35" if active else "#251c30"))
+            glass.setColorAt(1, QColor("#685545" if active else "#3a2b45"))
+            painter.setBrush(glass)
             painter.setPen(QPen(QColor("#e4d0aa" if active else "#5c4966"), 2 if active else 1))
             painter.drawEllipse(center, 16, 16)
-            painter.setPen(QColor("#211b22" if active else "#c2b0c9"))
+            painter.setPen(QColor("#f2e4c8" if active else "#c2b0c9"))
             painter.setFont(QFont("Segoe UI", 14))
             painter.drawText(QRectF(center.x() - 16, center.y() - 16, 32, 32), Qt.AlignmentFlag.AlignCenter, label)
         painter.setFont(QFont("Segoe UI", 9, QFont.Weight.DemiBold))

@@ -14,6 +14,7 @@ from vega.settings import Settings, SettingsStore
 class SettingsTests(unittest.TestCase):
     def test_defaults_and_clamps(self):
         self.assertEqual(Settings().settle_ms, 8)
+        self.assertEqual(Settings().preview_volume, 0.65)
         self.assertEqual(Settings(preview_volume=4).preview_volume, 1)
         self.assertEqual(Settings(preview_volume=-2).preview_volume, 0)
         self.assertEqual(Settings(settle_ms=50).settle_ms, 20)

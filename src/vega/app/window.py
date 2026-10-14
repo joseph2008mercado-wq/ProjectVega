@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (
 )
 
 from vega.app.style import STYLE
-from vega.app.widgets import FaceBank, LeverView, VegaMark
+from vega.app.widgets import FaceBank, GlassPanel, LeverView, VegaMark
 from vega.runtime import VegaRuntime
 from vega.settings import SettingsStore
 
@@ -24,7 +24,7 @@ def label(text: str, role: str = "") -> QLabel:
 
 
 def panel(title: str) -> tuple[QFrame, QVBoxLayout]:
-    frame = QFrame()
+    frame = GlassPanel()
     frame.setObjectName("panel")
     layout = QVBoxLayout(frame)
     layout.setContentsMargins(18, 14, 18, 14)
@@ -40,7 +40,7 @@ class VegaWindow(QMainWindow):
         self.store = store
         self.previous = None
         self.setWindowTitle("Project Vega · Guitar control panel")
-        self.resize(860, 850)
+        self.resize(860, 860)
         self.setMinimumSize(780, 580)
         self.setStyleSheet(STYLE)
         body = QWidget()
@@ -58,44 +58,43 @@ class VegaWindow(QMainWindow):
         header = QHBoxLayout()
         header.addWidget(VegaMark())
         brand = QVBoxLayout()
-        title = label("V E G A")
-        title.setStyleSheet("font-size: 30px; font-weight: 300; color: #e4d3b8;")
+        title = label("Vega")
+        title.setStyleSheet("font-size: 28px; font-weight: 400; color: #e3d9cc;")
         brand.addWidget(title)
-        brand.addWidget(label("GUITAR  /  PERFORMANCE CONSOLE", "section"))
+        brand.addWidget(label("Guitar controller", "muted"))
         header.addLayout(brand)
         header.addStretch()
-        header.addWidget(label("LYRA SERIES\nINPUT + AUDITION", "muted"))
         outer.addLayout(header)
 
-        device_panel, device_layout = panel("DEVICE")
+        device_panel, device_layout = panel("Device")
         row = QHBoxLayout()
         self.device_name = label("Qanba Titan")
         self.device_status = label("Waiting for Titan", "status")
         self.device_status.setWordWrap(True)
         row.addWidget(self.device_name)
         row.addStretch()
-        row.addWidget(self.device_status, 1)
+        row.addWidget(self.device_status)
         device_layout.addLayout(row)
-        device_layout.addWidget(label("PROFILE  Qanba Titan PC+DP     ·     Set physical switches to PC + DP", "muted"))
+        device_layout.addWidget(label("Qanba Titan PC+DP profile · Set physical switches to PC + DP", "muted"))
         outer.addWidget(device_panel)
 
         controls = QHBoxLayout()
         controls.setSpacing(12)
-        faces_panel, faces_layout = panel("FACE CONTROLS  /  FINGERING")
+        faces_panel, faces_layout = panel("Face controls")
         self.faces = FaceBank()
         faces_layout.addWidget(self.faces)
         faces_layout.addWidget(label("Hold any combination. Each strum captures it.", "muted"))
         faces_layout.addStretch()
         controls.addWidget(faces_panel, 1)
-        lever_panel, lever_layout = panel("LEVER  /  PICKING HAND")
+        lever_panel, lever_layout = panel("Lever")
         lever_panel.setMinimumHeight(286)
         self.lever = LeverView()
         lever_layout.addWidget(self.lever)
-        lever_layout.addWidget(label("LEFT / RIGHT = stroke · vertical center = NORMAL", "muted"))
+        lever_layout.addWidget(label("Left / right: stroke · Vertical center: normal", "muted"))
         controls.addWidget(lever_panel, 1)
         outer.addLayout(controls)
 
-        last_panel, last_layout = panel("LAST STRUM")
+        last_panel, last_layout = panel("Last strum")
         self.strum = label("—  Awaiting a stroke", "value")
         self.fingering = label("Fingering snapshot: —", "muted")
         self.strum_meta = label("Horizontal center rearms the next stroke.", "muted")
@@ -106,7 +105,7 @@ class VegaWindow(QMainWindow):
 
         lower = QHBoxLayout()
         lower.setSpacing(12)
-        timing_panel, timing_layout = panel("GESTURE SETTINGS")
+        timing_panel, timing_layout = panel("Gesture settings")
         timing_row = QHBoxLayout()
         timing_row.addWidget(label("Diagonal settle window"))
         self.settle = QDoubleSpinBox()
@@ -125,12 +124,13 @@ class VegaWindow(QMainWindow):
             button.clicked.connect(lambda checked=False, ms=value: self.settle.setValue(ms))
             presets.addWidget(button)
         timing_layout.addLayout(presets)
-        timing_layout.addWidget(label("8 ms verified default · adjustable / experimental", "muted"))
+        timing_layout.addWidget(label("Verified default: 8 ms · Adjustable", "muted"))
         lower.addWidget(timing_panel, 1)
 
-        audio_panel, audio_layout = panel("PREVIEW AUDIO  /  OPTIONAL")
+        audio_panel, audio_layout = panel("Preview audio")
         audio_row = QHBoxLayout()
-        self.mute = QPushButton("Muted · click to unmute")
+        self.mute = QPushButton("Muted · Unmute")
+        self.mute.setObjectName("mute")
         self.mute.setCheckable(True)
         self.mute.setChecked(True)
         self.panic = QPushButton("Panic / Stop")
@@ -157,7 +157,7 @@ class VegaWindow(QMainWindow):
         footer = QHBoxLayout()
         footer.addWidget(label("MIDI  ·  Not implemented yet", "muted"))
         footer.addStretch()
-        footer.addWidget(label("Preview tones only · future output: MIDI → DAW → VST", "muted"))
+        footer.addWidget(label("Preview strums · Fixed audition pitches", "muted"))
         outer.addLayout(footer)
         self.settings_status = label(store.error, "muted")
         self.settings_status.setWordWrap(True)
@@ -212,7 +212,7 @@ class VegaWindow(QMainWindow):
         self.audio_status.setText(state.audio_status)
         self.mute.blockSignals(True)
         self.mute.setChecked(state.muted)
-        self.mute.setText("Muted · click to unmute" if state.muted else "Preview on · click to mute")
+        self.mute.setText("Muted · Unmute" if state.muted else "Sound on · Mute")
         self.mute.blockSignals(False)
         self.mute.setEnabled(self.runtime.preview.available)
 
