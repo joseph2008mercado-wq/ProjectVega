@@ -1,8 +1,16 @@
 # Project Vega
 
-The first stage is a standalone Qanba Titan input inspector. It records what
-pygame/SDL exposes on Windows; it does not map controls to chords or send MIDI.
-See [ARCHITECTURE.md](ARCHITECTURE.md) for the planned instrument.
+The standalone Qanba Titan input inspector records what pygame/SDL exposes on
+Windows. A separate, unit-tested PC+DP input layer now translates the verified
+main controls and recognizes symbolic strum gestures. It does not interpret
+chords or send MIDI. See [ARCHITECTURE.md](ARCHITECTURE.md) for the mapping and
+planned instrument.
+
+In PC+DP mode, horizontal lever movement starts LEFT or RIGHT strums; the
+vertical position marks them FULL (down), NORMAL (center), or STRICT (up).
+Returning horizontally to x=0 rearms the next stroke even if up/down remains
+held. The eight main face controls include two trigger-style axes, normalized
+to ordinary symbolic presses and releases in the Titan profile.
 
 ## Install (PowerShell, Python 3.13)
 
@@ -34,11 +42,14 @@ drift. The inspector logs every changed value; `NEGATIVE`, `ZERO`, and
 shown with direction names. The session mode is the setting you supplied,
 because SDL cannot read the physical switch position.
 
-Send back the three session logs plus the physical order in which you tested
-the eight main buttons and any controls that produced no events. The useful
-parts are the `SESSION` and `INITIAL` lines (device identity/counts),
-`BASELINE`, all `BUTTON`/`HAT`/`AXIS` lines during the checklist, and any
-`CONNECTED`/`DISCONNECTED` lines after unplugging or changing mode. Also say
-whether events continued while another app had focus and whether a gamepad
-tester still saw ordinary Titan input at the same time. These observations
-will determine the first reviewed Titan profile.
+For future mode mapping, the useful log parts are `SESSION` and `INITIAL`
+(device identity/counts), `BASELINE`, the changed `BUTTON`/`HAT`/`AXIS` lines,
+and `CONNECTED`/`DISCONNECTED` lines. Record the physical test order and any
+controls with no events alongside the log. PC+DP is already mapped from the
+verified observations in [ARCHITECTURE.md](ARCHITECTURE.md).
+
+## Run tests
+
+```powershell
+.\.venv\Scripts\python.exe -m unittest discover -s tests -v
+```
