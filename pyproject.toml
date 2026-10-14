@@ -11,6 +11,7 @@ dependencies = ["pygame==2.6.1"]
 
 [project.scripts]
 vega-inspect-titan = "vega.diagnostics.inspect_titan:main"
+vega-inspect-gestures = "vega.diagnostics.inspect_gestures:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

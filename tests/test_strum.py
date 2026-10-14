@@ -89,6 +89,17 @@ class StrumTests(unittest.TestCase):
             ],
         )
 
+    def test_lower_and_upper_arc_spam_stays_one_per_acquisition(self) -> None:
+        for vertical, character in ((-1, StrumCharacter.FULL), (1, StrumCharacter.STRICT)):
+            with self.subTest(vertical=vertical):
+                positions = [(0, vertical)]
+                expected = []
+                for horizontal in (-1, 1) * 8:
+                    positions.extend(((horizontal, vertical), (horizontal, vertical), (0, vertical)))
+                    direction = StrumDirection.LEFT if horizontal == -1 else StrumDirection.RIGHT
+                    expected.append((direction, character))
+                self.assertEqual(labels(play_hats(*positions)), expected)
+
     def test_vertical_only_creates_no_strokes(self) -> None:
         self.assertEqual(play_hats((0, 0), (0, 1), (0, 0), (0, -1), (0, 0)), [])
         self.assertEqual(play_hats((0, 1), (0, -1)), [])
@@ -112,6 +123,23 @@ class StrumTests(unittest.TestCase):
             [(StrumDirection.LEFT, StrumCharacter.NORMAL)],
         )
 
+    def test_quarter_circles_keep_diagonal_character_without_duplicates(self) -> None:
+        cases = [
+            ((0, -1), (1, -1), (1, 0), StrumDirection.RIGHT, StrumCharacter.FULL),
+            ((0, -1), (-1, -1), (-1, 0), StrumDirection.LEFT, StrumCharacter.FULL),
+            ((0, 1), (1, 1), (1, 0), StrumDirection.RIGHT, StrumCharacter.STRICT),
+            ((0, 1), (-1, 1), (-1, 0), StrumDirection.LEFT, StrumCharacter.STRICT),
+        ]
+        for start, diagonal, cardinal, direction, character in cases:
+            with self.subTest(diagonal=diagonal):
+                self.assertEqual(labels(play_hats(start, diagonal, cardinal)), [(direction, character)])
+
+    def test_vertical_changes_while_horizontal_held_never_retrigger(self) -> None:
+        self.assertEqual(
+            labels(play_hats((0, 0), (-1, 0), (-1, 1), (-1, 0), (-1, -1), (-1, 0))),
+            [(StrumDirection.LEFT, StrumCharacter.FULL)],
+        )
+
     def test_settle_window_is_deterministic_and_configurable(self) -> None:
         pipeline = VegaInputPipeline(settle_seconds=0.008)
         self.assertEqual(pipeline.on_raw(RawHatEvent(0, -1, 0, 1.0)), [])
@@ -132,6 +160,16 @@ class StrumTests(unittest.TestCase):
         gestures = pipeline.on_raw(RawHatEvent(0, 0, 0, 1.002))
         self.assertEqual(labels(gestures), [(StrumDirection.LEFT, StrumCharacter.NORMAL)])
         self.assertEqual(pipeline.flush(2.0), [])
+
+    def test_pending_finalizes_on_idle_flush(self) -> None:
+        pipeline = VegaInputPipeline(settle_seconds=0.008)
+        self.assertEqual(pipeline.on_raw(RawHatEvent(0, 1, -1, 5.0)), [])
+        self.assertEqual(pipeline.flush(5.007), [])
+        self.assertEqual(
+            labels(pipeline.flush(5.009)),
+            [(StrumDirection.RIGHT, StrumCharacter.FULL)],
+        )
+        self.assertEqual(pipeline.flush(6.0), [])
 
     def test_fingering_is_snapshotted_at_horizontal_acquisition(self) -> None:
         pipeline = VegaInputPipeline()

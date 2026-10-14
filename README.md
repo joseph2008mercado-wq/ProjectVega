@@ -12,6 +12,26 @@ Returning horizontally to x=0 rearms the next stroke even if up/down remains
 held. The eight main face controls include two trigger-style axes, normalized
 to ordinary symbolic presses and releases in the Titan profile.
 
+## Inspect live gestures
+
+With the Titan set to physical PC + DP mode, run:
+
+```powershell
+.\.venv\Scripts\python.exe -m vega.diagnostics.inspect_gestures --log gestures-8ms.txt
+```
+
+The diagnostic shows symbolic FACE and lever changes and prints each finalized
+`STRUM` with its LEFT/RIGHT direction, FULL (down)/NORMAL (vertical center)/
+STRICT (up) character, and held fingering at the stroke. Its startup checklist
+covers fast horizontal strokes, upper and lower arcs, quarter circles, and
+fingering snapshots. Close the small window or press Ctrl+C to stop. If more
+than one controller is connected and the Titan cannot be identified by name,
+use `--device-index N` from the displayed choices.
+
+The default 8 ms diagonal settle window is experimental. Compare it on the
+real Titan using `--settle-ms 4`, `6`, `8`, `10`, or `12`, giving each run a
+different `--log` filename. The tool never overwrites an existing log.
+
 ## Install (PowerShell, Python 3.13)
 
 Run these from the repository root:

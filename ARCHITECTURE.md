@@ -265,3 +265,5 @@ Vega reads the Titan like a game controller. A small PC+DP profile gives each re
 ## Completed input-stage boundary
 
 `inspect_titan.py` stays a raw hardware diagnostic. `TitanPcDpProfile` alone owns measured pygame IDs and axis normalization; `PhysicalState` and `StrumRecognizer` know only symbolic controls. `VegaInputPipeline` connects them and exposes `on_raw(event)` plus `flush(now)` for a future runtime. This stage intentionally contains no chord vocabulary, voicing, virtual-string simulation, MIDI output, or GUI.
+
+The live `inspect_gestures.py` diagnostic now uses a pygame input adapter to feed that same production pipeline. It prints symbolic state and finalized gestures, and calls `flush(now)` on every event-loop pass so an 8 ms pending stroke completes even when no further SDL event arrives. `--settle-ms` allows comparison on the real Titan; the window remains a playing-test decision. The older raw inspector remains separate for future hardware discovery.
