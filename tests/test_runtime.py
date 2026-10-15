@@ -2,6 +2,7 @@
 
 import sys
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
@@ -31,6 +32,49 @@ class FakeSource:
 
 
 class RuntimeTests(unittest.TestCase):
+    def test_close_once_and_no_poll_after_shutdown(self):
+        self.connect()
+        self.source.events = [RawHatEvent(0, 1, 0, 1)]
+        self.runtime.tick(1)
+        with patch.object(self.source, "close", wraps=self.source.close) as close, \
+             patch.object(self.source, "poll", wraps=self.source.poll) as poll:
+            self.runtime.close()
+            self.runtime.close()
+            self.assertEqual(self.runtime.tick(2), [])
+            close.assert_called_once()
+            poll.assert_not_called()
+        self.assertIsNone(self.runtime._pending_mapping)
+        self.assertFalse(self.runtime.snapshot().device.connected)
+
+    def test_source_close_failure_still_resets_physical_state(self):
+        self.connect()
+        self.source.events = [RawButtonEvent(2, True, 1)]
+        self.runtime.tick(1)
+        with patch.object(self.source, "close", side_effect=OSError("device removed")), \
+             self.assertLogs("vega.runtime", level="ERROR"):
+            self.runtime.close()
+        self.assertFalse(self.runtime.snapshot().faces)
+        self.assertTrue(self.audio.closed)
+
+    def test_repeated_startup_shutdown_with_active_outputs(self):
+        for _ in range(20):
+            source, audio, midi = FakeSource(), FakeAudio(), FakeMidi()
+            runtime = VegaRuntime(source, PreviewSynth(audio), Settings(settle_ms=0), MidiOutput(midi))
+            runtime.preview.set_muted(False)
+            runtime.midi.select("Vega Guitar")
+            source.events = [DeviceStatus(True), RawHatEvent(0, 1, -1, 1)]
+            runtime.tick(1)
+            self.assertTrue(runtime.midi.active)
+            source.events = [DeviceStatus(False)]
+            runtime.tick(1.001)
+            self.assertFalse(runtime.midi.active)
+            self.assertFalse(runtime.midi._queue)
+            self.assertFalse(audio.active)
+            runtime.close()
+            runtime.close()
+            self.assertFalse(midi.opened)
+            self.assertTrue(source.closed)
+
     def setUp(self):
         self.source = FakeSource()
         self.audio = FakeAudio()

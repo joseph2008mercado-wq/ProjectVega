@@ -60,6 +60,31 @@ def event(kind: int, **fields: object) -> types.SimpleNamespace:
 
 
 class PygameAdapterTests(unittest.TestCase):
+    def test_desktop_pump_error_resets_resources_and_announces_reconnect(self):
+        with patch.dict(sys.modules, {"pygame": fake_pygame}):
+            desktop_module = importlib.import_module("vega.input.desktop_source")
+        source = desktop_module.DesktopInputSource()
+        source.initialized = True
+        current_device[0] = FakeJoystick(55)
+        source.adapter.connect_initial()
+        display = types.SimpleNamespace(init=lambda: None, set_mode=lambda *args: None, quit=lambda: None)
+        devices = types.SimpleNamespace(get_count=lambda: 1, Joystick=lambda i: current_device[0],
+                                       init=lambda: None, quit=lambda: None)
+        with patch.object(fake_pygame, "error", RuntimeError, create=True), \
+             patch.object(fake_pygame, "display", display), \
+             patch.object(fake_pygame, "joystick", devices), \
+             patch.object(fake_pygame, "HIDDEN", 0, create=True), \
+             patch.object(fake_pygame, "event", types.SimpleNamespace(get=lambda: []), create=True):
+            with patch.object(fake_pygame.event, "get", side_effect=RuntimeError("SDL lost")):
+                self.assertFalse(source.poll(1)[0].connected)
+            self.assertFalse(source.initialized)
+            self.assertIsNone(source.adapter.joystick)
+            self.assertEqual(source.poll(2), [])
+            current_device[0] = FakeJoystick(56)
+            fake_pygame.event.get = lambda: [event(fake_pygame.JOYDEVICEADDED, device_index=0)]
+            self.assertTrue(source.poll(3)[0].connected)
+            source.close()
+
     def test_selected_device_raw_events_and_reconnect(self) -> None:
         first = FakeJoystick(10)
         current_device[0] = first

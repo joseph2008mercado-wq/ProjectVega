@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import logging
 from typing import Callable, Protocol
 
 from vega.audio.preview import PreviewSynth
@@ -73,6 +74,7 @@ class VegaRuntime:
         self.midi = midi or MidiOutput()
         self.midi.set_channel(settings.midi_channel)
         self.clock = clock
+        self.closed = False
 
     def bank_action(self, action: BankAction) -> None:
         self.pending_bank = next_bank(self.pending_bank or self.bank, action)
@@ -107,6 +109,8 @@ class VegaRuntime:
         self.settings.midi_channel = channel
 
     def tick(self, now: float) -> list[StrumGesture]:
+        if self.closed:
+            return []
         gestures: list[StrumGesture] = []
         captured: list[tuple[StrumGesture, int, FretSet]] = []
         try:
@@ -186,7 +190,18 @@ class VegaRuntime:
                          self.midi.status, self.midi.channel, mapping)
 
     def close(self) -> None:
+        # Both the window and application's finally block may request shutdown.
+        if self.closed:
+            return
+        self.closed = True
         self.midi.close()
         self.preview.close()
-        self.source.close()
-        self.pipeline.reset()
+        try:
+            self.source.close()
+        except Exception:
+            logging.getLogger(__name__).exception("Controller cleanup failed during shutdown")
+        finally:
+            self.pipeline.reset()
+            self._pending_mapping = None
+            self.pending_bank = None
+            self.device = DeviceStatus(False, detail="Closed")

@@ -47,6 +47,7 @@ class VegaWindow(QMainWindow):
         self.runtime = runtime
         self.store = store
         self.previous = None
+        self._closing = False
         self.setWindowTitle(APP_NAME)
         self.setWindowIcon(QIcon(str(icon_path())))
         available = self.screen().availableGeometry()
@@ -404,6 +405,10 @@ class VegaWindow(QMainWindow):
         self.settings_status.setVisible(bool(self.store.error))
 
     def closeEvent(self, event) -> None:
+        if self._closing:
+            event.accept()
+            return
+        self._closing = True
         self.timer.stop()
         self.save_timer.stop()
         self.flash_timer.stop()

@@ -86,7 +86,8 @@ def collect(destination: Path) -> None:
     for name in ("LICENSE", "README.md", "ARCHITECTURE.md", "THIRD_PARTY_NOTICES.md"):
         shutil.copyfile(ROOT / name, destination / name)
     (destination / "docs").mkdir(exist_ok=True)
-    shutil.copyfile(ROOT / "docs" / "RELEASE_INTEGRATION.md", destination / "docs" / "RELEASE_INTEGRATION.md")
+    for name in ("RELEASE_INTEGRATION.md", "CLEAN_WINDOWS_TEST.md"):
+        shutil.copyfile(ROOT / "docs" / name, destination / "docs" / name)
     print(f"Collected {len(jobs)} upstream notices plus installed dependency licenses into {notices}")
 
 

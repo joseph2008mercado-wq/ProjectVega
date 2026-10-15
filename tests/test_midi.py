@@ -29,6 +29,54 @@ class FakeMidi:
 
 
 class MidiTests(unittest.TestCase):
+    def test_rapid_strums_eventually_pair_every_on_and_off(self):
+        peak = 0
+        for index in range(2000):
+            now = index * .005
+            self.output.submit(sample_plan(StrumCharacter.FULL), now)
+            self.output.tick(now)
+            peak = max(peak, len(self.output._queue))
+        self.output.tick(20)
+        balance = {}
+        for message in self.backend.messages:
+            if message.kind in ("note_on", "note_off"):
+                key = message.channel, message.note
+                balance[key] = balance.get(key, 0) + (1 if message.kind == "note_on" else -1)
+                self.assertIn(balance[key], (0, 1))
+        self.assertTrue(all(n == 0 for n in balance.values()))
+        self.assertFalse(self.output.active)
+        self.assertFalse(self.output._queue)
+        self.assertLess(peak, 1200)  # Deadline horizon, not total session length.
+
+    def test_port_switch_cancels_old_scheduled_notes(self):
+        self.output.submit(sample_plan(), 1)
+        self.output.tick(1)
+        self.output.select("Other")
+        self.assertFalse(self.output.active)
+        self.assertFalse(self.output._queue)
+        count = len(self.backend.messages)
+        self.output.tick(10)
+        self.assertEqual(len(self.backend.messages), count)
+        self.assertEqual(self.backend.opened, "Other")
+
+    def test_partial_panic_failure_attempts_remaining_cleanup(self):
+        self.output.submit(sample_plan(), 1)
+        self.output.tick(1)
+        sent = []
+        def send(message):
+            sent.append(message)
+            if len(sent) == 1:
+                raise OSError("one send failed")
+        with patch.object(self.backend, "send", side_effect=send), \
+             patch.object(self.backend, "close", side_effect=OSError("close failed")):
+            self.output.panic()
+        self.assertTrue(any(m.channel == 15 and m.control == 120 for m in sent))
+        self.assertFalse(self.output.active)
+        self.assertFalse(self.output._queue)
+        self.assertFalse(self.output.port_name)
+        self.output.panic()
+        self.output.close()
+
     def setUp(self):
         self.backend = FakeMidi()
         self.output = MidiOutput(self.backend)
@@ -130,7 +178,7 @@ class MidiTests(unittest.TestCase):
         self.output.disconnect()
         self.backend.names = ()
         self.output.refresh()
-        self.assertIn("No ports", self.output.status)
+        self.assertEqual("No MIDI outputs available", self.output.status)
 
     def test_mido_adapter_uses_existing_port_and_normal_messages(self):
         sent = []

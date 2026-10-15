@@ -21,6 +21,21 @@ class DesktopInputSource:
         self.last_status: DeviceStatus | None = None
 
     def poll(self, now: float) -> list[RawEvent | DeviceStatus]:
+        try:
+            return self._poll(now)
+        except pygame.error as exc:
+            # A lost SDL handle must not leave last_status saying Connected:
+            # reconnect must publish a new connection edge to the runtime.
+            try:
+                self.close()
+            except pygame.error:
+                pass
+            self.retry_at = now + 2
+            status = DeviceStatus(False, detail=f"Input unavailable: {exc}")
+            self.last_status = status
+            return [status]
+
+    def _poll(self, now: float) -> list[RawEvent | DeviceStatus]:
         changes: list[RawEvent | DeviceStatus] = []
         if not self.initialized:
             if now < self.retry_at:
@@ -65,6 +80,11 @@ class DesktopInputSource:
             changes.append(status)
 
     def close(self) -> None:
-        self.adapter.close()
-        pygame.joystick.quit()
-        pygame.display.quit()
+        self.initialized = False
+        self.search_at = 0
+        self.last_status = None
+        try:
+            self.adapter.close()
+        finally:
+            pygame.joystick.quit()
+            pygame.display.quit()

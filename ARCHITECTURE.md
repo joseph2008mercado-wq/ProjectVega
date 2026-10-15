@@ -34,10 +34,13 @@ Titan -> pygame/SDL raw events -> verified PC+DP profile -> symbolic physical st
 
 These are responsibilities, not separate processes or a class for every arrow.
 The music code is pure Python. One runtime, two optional outputs, and a small
-Qt panel are sufficient for this stage. There is no service, database, plugin
+Qt panel are sufficient for v1. There is no service, database, plugin
 framework, driver or DAW-specific behavior.
 
-## End-user DAW workflow
+## Optional post-install DAW workflow
+
+End-user installation is download Setup → run Setup → launch Vega. No Python,
+development tools, Titan, MIDI cable or DAW is required to install or launch.
 
 1. Enable an existing Windows MIDI loopback cable, optionally named **Vega Guitar**.
 2. Start Vega with the Titan switches at **PC + DP**, buttons released, lever centered.
@@ -71,8 +74,8 @@ The two trigger-style axes start at 0, release near -1 and press near +1.
 The profile ignores startup midpoint and uses release/press thresholds -0.5/+0.5.
 DP is hat 0: x=-1/0/+1 means LEFT/neutral/RIGHT; y=-1/0/+1 means DOWN/center/UP.
 Only `input/titan_profile.py` owns these IDs. The input profile, physical state,
-and recognizer behavior are preserved. The recognizer merely exposes a read-only
-`has_pending` property for safe bank switching.
+and recognizer behavior are preserved. The recognizer exposes `has_pending`
+for safe switching and `cancel_pending` for Panic without horizontal rearming.
 
 Options is verified as ordinary pygame button 7 in PC+DP mode. The profile
 translates it to `ButtonChange(ButtonControl.OPTIONS, pressed, timestamp)`.
@@ -223,13 +226,10 @@ it is not a sampled guitar and high MIDI pitches are only a simple audition.
 ## MIDI output architecture and cleanup
 
 `MidiOutput` takes an injected `MidiBackend` with ports/open/send/close methods.
-The default adapter validates/encodes messages with **Mido 1.3.3** and prefers
-RtMidi if installed. The published `python-rtmidi 1.5.8` lacks a Python 3.13
-Windows wheel; installing it here requires a C++ compiler. The default desktop
-extra therefore uses pygame's bundled **PortMidi** transport, with optional
-`.[rtmidi]` for environments that can build RtMidi. This keeps Python 3.13 and
-does not require an untrusted third-party binary ([RtMidi releases](https://pypi.org/project/python-rtmidi/),
-[pygame MIDI](https://www.pygame.org/docs/ref/midi.html)).
+The adapter validates/encodes messages with Mido and prefers RtMidi if installed.
+The release uses pygame's bundled PortMidi. Optional `.[rtmidi]` is a developer
+alternative; source builds may need C++ tools. Installed Vega needs no compiler.
+Exact bundled versions are recorded in `licenses/SOURCES.json`.
 
 Startup prefers an exact “Vega Guitar” output, otherwise the saved selection.
 Users may explicitly select/disconnect an existing output. Channel is 1–16 in the GUI,
@@ -257,15 +257,12 @@ as a preference, but only an explicit Refresh/selection retries it. There is no
 fallback to an arbitrary output. Drivers that conceal inventory changes may
 still require Refresh. MIDI problems do not stop input/preview.
 
-Native Windows MIDI Services endpoint hosting is not implemented. Inspection on
-Windows 11 25H2 build 26200.9457 found `midisrv` and the virtual transport, but no
-installed App SDK runtime/tooling or verified Python integration. Microsoft's
-virtual device API requires the new SDK and UMP-aware host/lifetime management;
-the service alone is not evidence that Vega can publish a port. A tested native
-bridge and DAW compatibility validation belong in a separate transport-only pass.
-See the sourced investigation in `docs/RELEASE_INTEGRATION.md`.
+Native endpoint hosting is not implemented. A running Windows MIDI service does
+not make Vega an endpoint publisher. Same-PC DAW routing needs an external
+loopback, configured optionally after installation. No ports is ordinary state,
+displayed as “No MIDI outputs available”.
 
-## Runtime, desktop and future background host
+## Runtime and desktop lifecycle
 
 `VegaRuntime.tick(now)` polls input, applies connection resets, finalizes gestures,
 captures bank+fingering, creates plans and services outputs even on idle ticks.
@@ -273,7 +270,15 @@ A disconnect later in an input batch discards earlier ready strokes in that
 batch. The runtime has no Qt import and can be hosted independently later.
 SDL must be pumped by its owning thread. Today closing the panel closes the
 runtime; a tray/service host and single-instance enforcement remain future work.
-Run only one Vega app/diagnostic at a time.
+Run only one Vega app/diagnostic at a time. SDL pump failures release stale
+handles and retry after two seconds, announcing a fresh connection edge.
+
+Shutdown stops Qt timers, closes MIDI with note cleanup, closes preview, then
+releases controller/display resources and resets physical/pending state. Runtime
+close is idempotent and closed runtimes cannot poll again. Preview PCM is released
+on close. Controller close failures are logged without preventing state reset.
+The app drains deferred Qt window deletion before interpreter teardown. Settings
+saves are debounced and closing saves once.
 
 The panel retains the plum Vista/Aero identity, Segoe UI, champagne accents and
 claw/six-string mark. Frets, harmonic state and six strings are read-only displays.
@@ -284,7 +289,7 @@ with titlebar/taskbar space. Qt logical pixels account for display scaling.
 Window geometry is saved through Qt, restored and clamped to the available screen.
 The dedicated Fret Set dialog is compact and uses layouts/range-controlled widgets.
 
-## Release / distribution layer
+## Build / packaging / installer architecture
 
 PyInstaller builds a console-free one-folder application with Python/Qt/SDL and
 real Vega icon. The build collects installed and upstream version-matched license
@@ -293,18 +298,36 @@ as `dist/installer/Vega-Setup.exe`: classic warm-gray/Tahoma wizard with per-win
 unthemed controls and simple generated Vega bitmaps, per-user privileges,
 stable `ProjectVega.Vega` AppId, `%LOCALAPPDATA%/Programs/Vega`, one Start Menu link
 and an optional Desktop task. No runtime dependence on the installer or developer
-tools. Version 0.2.0 is shared by project metadata, application and Setup.
+tools. Version 1.0.0 is shared by project metadata, application and Setup; tagging
+and publication remain separate decisions after release acceptance.
 
 Inno's install log manages upgrades/uninstall; user settings live outside the
 installation and are never deleted. Legacy script-managed installations are
-recognized by their ownership marker and upgraded in place: root payload and
-matching shortcuts become current, old release folders/manifest remain as backups.
+recognized by their marker and a hash-matched legacy executable. Root payload
+and matching shortcuts become current. After successful installation, the frozen
+entry point runs isolated `packaging/legacy_migration.py` using bundled Python;
+no Qt, audio/input, external Python or build tools are invoked. It validates the
+complete manifest, every path and each executable's SHA-256 directory name before
+deleting individual listed files. Empty known directories and completed metadata
+are removed. Unknown files, malformed inventories, redirected paths, changed
+executables and uncertain leftovers are preserved.
 An existing legacy Desktop shortcut is retained even when the new task is unchecked.
-Legacy helpers reject Setup-managed installs to avoid crossing ownership boundaries.
-Setup rejects unrelated nonempty destinations and conflicting shortcuts. No EULA,
+There is no legacy installer/uninstaller or version manager left. Setup rejects
+unrelated nonempty destinations, conflicting shortcuts, redirected paths and
+legacy roots that collide with the new payload. No EULA,
 driver/service registration, auto-updater, admin hack or fabricated signature.
 The test compiler variant changes only identity/destination/shortcut names for
 safe disposable installation testing; production identity is unchanged.
+
+Build flow: `build-windows.ps1` → one self-contained `dist/Vega` →
+`build-installer.ps1` → `dist/installer/Vega-Setup.exe`. Build-time
+`verify-distribution.py` checks Python/Qt/SDL/PortMidi/VC-runtime resources and
+creates a SHA-256 inventory; the installer build rejects missing/changed payloads.
+This inventory is build validation, not an installed ownership database/updater.
+Setup copies prebuilt files, creates shortcuts, registers uninstall and optionally
+performs one-time migration. It never creates a venv, runs pip, installs Python,
+downloads dependencies or builds Vega. `_internal` supplies the runtime DLLs.
+Clean-machine acceptance is in `docs/CLEAN_WINDOWS_TEST.md`.
 
 ## Repository structure
 
@@ -320,8 +343,8 @@ src/vega/
                 identity.py, smoke.py, fret_set_editor.py, resources/
   diagnostics/  inspect_titan.py, inspect_gestures.py
 tests/          input, music, preview, MIDI, runtime, settings, Qt and packaging checks
-scripts/        build/install/uninstall/smoke Windows helpers
-packaging/      Vega.spec, Vega.iss, windows-entry.py
+scripts/        build, inventory/license validation, smoke and isolated Setup tests
+packaging/      Vega.spec, Vega.iss, windows-entry.py, legacy_migration.py
 ```
 
 ## Testing and technical risks
@@ -342,25 +365,18 @@ and whether compact heuristic voicings feel good. The runtime must not claim
 hardware-derived force or hard realtime timing. High-DPI/native rendering and
 the frozen executable receive separate smoke checks.
 
-## Stable decisions and next stages
+## Stable v1 decisions and validation limits
 
 Stable: Python 3.13; verified PC+DP mapping; symbolic-only musical input; three editable
 Fret Sets; held-fret harmonic state; silent fret changes; open-state guitar; deterministic
 voicing; shared plans; RIGHT low→high and LEFT high→low; FULL/NORMAL/STRICT coverage;
 optional muted-start preview; existing-port MIDI; GUI-independent runtime.
 
-Hardware/playing-dependent: Create/Share mapping, concurrent access, future
-LS/RS profiles, latency and preferred spread/voicing feel. No driver, bends,
-slides, capo, keyswitches, tuning UI or instrument-specific profiles in this stage.
-
-1. **Done:** raw discovery, verified profile and deterministic gesture recognizer.
-2. **Done:** desktop preview, identity, packaging and safe local shortcuts.
-3. **Implemented:** harmony, fretboard/voicing, shared plans and MIDI routing.
-4. **Release integration:** editable Fret Sets, robust existing-port MIDI and classic Setup.
-5. **Next validation:** connect a real loopback port and FL Studio;
-   play open/F-major strums, inspect spacing, retrigger notes and test panic/unplug.
-6. **Later, measured improvements:** background/tray host, scheduling worker if
-   justified, broader harmonic input policy, articulations and integrated endpoint.
+Create/Share and LS/RS are unsupported. Concurrent game access, latency under
+load, audible preview and live DAW/VST release require physical tests. No driver,
+bends, slides, capo, tuning UI, updater, cloud service or native endpoint is
+included. Internal `bank` names are set indexes, not another arithmetic-bank
+engine; renaming them would add churn without changing ownership.
 
 ## Beginner summary and next live check
 
@@ -368,11 +384,7 @@ The buttons choose musical notes; the voicer arranges them on six guitar strings
 The lever chooses how to sweep those strings. One plan goes to the small preview
 synth and/or to a MIDI cable feeding a DAW. Input, music and transport remain separate.
 
-Keep PC+DP and launch Vega:
-
-```powershell
-.\.venv\Scripts\python.exe -m vega.app
-```
+Install with Setup, keep PC+DP and launch Vega from its Start Menu shortcut.
 
 Press/release Options three times: the Fret Set display should cycle 1→2→3→1
 without sound. Hold a FACE control and press Options: the current fret remains

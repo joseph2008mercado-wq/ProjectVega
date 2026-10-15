@@ -61,3 +61,8 @@ class PygameAudioBackend:
                 self.queue.clear()
             mixer.stop()
             mixer.quit()
+        # Release PCM even if another SDL owner already shut down the mixer.
+        if hasattr(self, "queue"):
+            self.queue.clear()
+        if hasattr(self, "sounds"):
+            self.sounds.clear()

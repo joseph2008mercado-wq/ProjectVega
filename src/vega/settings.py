@@ -16,7 +16,7 @@ DEFAULT_PREVIEW_VOLUME = 0.65
 def bounded(value: object, low: float, high: float, default: float) -> float:
     try:
         number = float(value)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return default
     return min(high, max(low, number)) if math.isfinite(number) else default
 

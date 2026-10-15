@@ -12,6 +12,15 @@ from vega.settings import Settings, SettingsStore
 
 
 class SettingsTests(unittest.TestCase):
+    def test_malformed_numeric_field_preserves_other_preferences(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "settings.json"
+            path.write_text(json.dumps({"settle_ms": 10 ** 400, "preview_volume": .3,
+                                        "midi_channel": 12, "active_set": 3}))
+            settings = SettingsStore(path).load()
+            self.assertEqual(settings.settle_ms, 8)
+            self.assertEqual((settings.preview_volume, settings.midi_channel, settings.active_set), (.3, 12, 3))
+
     def test_defaults_and_clamps(self):
         self.assertEqual(Settings().settle_ms, 8)
         self.assertEqual(Settings().preview_volume, 0.65)

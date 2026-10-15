@@ -159,3 +159,5 @@ class PreviewTests(unittest.TestCase):
         self.assertTrue(all(not c.played for c in mixer.channels))
         backend.close()
         self.assertFalse(mixer.ready)
+        self.assertFalse(backend.sounds)
+        backend.close()

@@ -6,12 +6,13 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from qt_support import QtTestCase
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 
 @unittest.skipUnless(importlib.util.find_spec("PySide6"), "desktop extra not installed")
-class WindowTests(unittest.TestCase):
+class WindowTests(QtTestCase):
     def test_geometry_policy_at_target_resolutions_and_dpi(self):
         from vega.app.geometry import initial_size
         for width, height in ((1280, 720), (1366, 768), (1920, 1080)):
@@ -108,6 +109,9 @@ class WindowTests(unittest.TestCase):
             app.processEvents()
             self.assertGreater(window.centralWidget().verticalScrollBar().maximum(), 0)
             window.close()
+            self.assertFalse(window.timer.isActive())
+            self.assertFalse(window.save_timer.isActive())
+            self.assertFalse(window.flash_timer.isActive())
             self.assertTrue(source.closed)
             self.assertTrue(audio.closed)
             self.assertEqual(window.store.load().settle_ms, 6)

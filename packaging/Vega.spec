@@ -27,7 +27,7 @@ version = VSVersionInfo(
 icon = root / "src" / "vega" / "app" / "resources" / "vega.ico"
 a = Analysis(
     [str(root / "packaging" / "windows-entry.py")],
-    pathex=[str(root / "src")],
+    pathex=[str(root / "src"), str(root / "packaging")],
     datas=[(str(icon), "vega/app/resources")],
     hiddenimports=["mido.backends.rtmidi", "pygame.midi"],
     excludes=["pytest", "unittest", "pygame.tests", "pygame.examples", "tkinter"],

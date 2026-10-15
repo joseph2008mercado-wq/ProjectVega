@@ -5,12 +5,13 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
+from qt_support import QtTestCase
 
 from vega.music.fret_sets import FACTORY_FRET_SETS, FretSet
 
 
 @unittest.skipUnless(importlib.util.find_spec("PySide6"), "desktop extra not installed")
-class EditorTests(unittest.TestCase):
+class EditorTests(QtTestCase):
     @classmethod
     def setUpClass(cls):
         os.environ["QT_QPA_PLATFORM"] = "offscreen"

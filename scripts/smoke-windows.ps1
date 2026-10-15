@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param()
+param([switch]$WithoutController)
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $exe = Join-Path $projectRoot 'dist\Vega\Vega.exe'
@@ -11,7 +11,9 @@ if ($subsystem -ne 2) { throw 'Executable is not a Windows GUI application.' }
 if ((Get-Item -LiteralPath $exe).VersionInfo.ProductName -ne 'Vega') { throw 'Product metadata is missing.' }
 $report = Join-Path $projectRoot ('build\smoke-' + [guid]::NewGuid().ToString('N') + '.json')
 $null = New-Item -ItemType Directory -Path (Split-Path -Parent $report) -Force
-$process = Start-Process -FilePath $exe -ArgumentList @('--smoke-test-report', ('"' + $report + '"')) -WorkingDirectory (Split-Path -Parent $exe) -WindowStyle Hidden -PassThru
+$arguments = @('--smoke-test-report', ('"' + $report + '"'))
+if ($WithoutController) { $arguments += @('--device-index', '9999') }
+$process = Start-Process -FilePath $exe -ArgumentList $arguments -WorkingDirectory (Split-Path -Parent $exe) -WindowStyle Hidden -PassThru
 if (-not $process.WaitForExit(20000)) {
     Stop-Process -Id $process.Id
     throw 'Vega smoke check timed out; the diagnostic process was stopped.'
@@ -22,5 +24,6 @@ if ($process.ExitCode -ne 0 -or $result.error) { throw "Vega startup failed: $($
 if (-not ($result.frozen -and $result.gui_initialized -and $result.icon_present -and $result.muted) -or $result.console_attached) {
     throw "Packaged startup check failed. Inspect $report"
 }
+if ($WithoutController -and $result.connected) { throw 'Expected normal startup without a selected controller.' }
 $result | Format-List
 Write-Host "Packaged startup passed. Report: $report"

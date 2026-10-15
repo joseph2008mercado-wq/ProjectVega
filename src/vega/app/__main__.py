@@ -10,7 +10,11 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--device-index", type=int, help="Initial Titan index if multiple controllers are attached")
     parser.add_argument("--smoke-test-report", type=Path, help=argparse.SUPPRESS)
+    parser.add_argument("--smoke-test-settings", type=Path, help=argparse.SUPPRESS)
+    parser.add_argument("--smoke-test-edit-set", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
+    if (args.smoke_test_settings or args.smoke_test_edit_set) and not args.smoke_test_report:
+        parser.error("Smoke settings/edit flags require --smoke-test-report")
     try:
         from PySide6.QtWidgets import QApplication
     except ImportError as exc:
@@ -49,35 +53,48 @@ def main(argv: list[str] | None = None) -> int:
     if args.smoke_test_report:
         from vega.app.smoke import SmokeSettingsStore
 
-        store = SmokeSettingsStore()
+        store = SettingsStore(args.smoke_test_settings) if args.smoke_test_settings else SmokeSettingsStore()
     settings = store.load()
     preview = PreviewSynth(PygameAudioBackend(), settings.preview_volume)
     runtime = VegaRuntime(DesktopInputSource(device_index=args.device_index), preview, settings,
                           clock=time.perf_counter)
-    runtime.midi.restore(settings.midi_port)
-    window = VegaWindow(runtime, store)
-    window.show()
-    if app.platformName() == "windows":
-        use_dark_window_frame(int(window.winId()))
-    if args.smoke_test_report:
-        from PySide6.QtCore import QTimer
-        from vega.app.smoke import write_report
-
-        def finish_smoke_test():
-            result = 0
-            try:
-                write_report(window, args.smoke_test_report)
-            except OSError:
-                result = 1
-            finally:
-                window.close()
-                app.exit(result)
-
-        QTimer.singleShot(1000, finish_smoke_test)
+    window = None
     try:
+        runtime.midi.restore(settings.midi_port)
+        window = VegaWindow(runtime, store)
+        window.show()
+        if app.platformName() == "windows":
+            use_dark_window_frame(int(window.winId()))
+        if args.smoke_test_report:
+            from PySide6.QtCore import QTimer
+            from vega.app.smoke import write_report
+
+            def finish_smoke_test():
+                result = 0
+                try:
+                    if args.smoke_test_edit_set:
+                        window.open_set_editor()
+                        window.editor.names[0].setText("Release verification")
+                        window.editor.slots[0][0].setValue(24)
+                        window.editor.accept()
+                    write_report(window, args.smoke_test_report)
+                except OSError:
+                    result = 1
+                finally:
+                    window.close()
+                    app.exit(result)
+
+            QTimer.singleShot(1000, finish_smoke_test)
         return app.exec()
     finally:
         runtime.close()
+        if window is not None:
+            from PySide6.QtCore import QCoreApplication, QEvent
+            window.close()
+            window.deleteLater()
+            # exec() has ended: explicitly drain deferred deletions before
+            # QApplication/Python tear down native Qt objects in arbitrary order.
+            QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
 
 
 if __name__ == "__main__":

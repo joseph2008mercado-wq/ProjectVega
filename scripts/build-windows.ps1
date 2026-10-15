@@ -34,4 +34,6 @@ $exe = Join-Path $dist 'Vega\Vega.exe'
 if (-not (Test-Path -LiteralPath $exe)) { throw "Build did not produce $exe" }
 & $python (Join-Path $PSScriptRoot 'collect-licenses.py')
 if ($LASTEXITCODE -ne 0) { throw 'License collection failed; do not distribute the incomplete build.' }
+& $python (Join-Path $PSScriptRoot 'verify-distribution.py') --write
+if ($LASTEXITCODE -ne 0) { throw 'Distribution validation failed; do not distribute this build.' }
 Write-Host "Built: $exe"

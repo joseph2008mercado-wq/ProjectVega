@@ -194,7 +194,7 @@ class MidiOutput:
                 self.disconnect()
                 self.status = "Port disappeared · reconnect after Refresh"
             elif not self.port_name:
-                self.status = "Not connected · select a port" if self.port_names else "No ports · create or enable a MIDI cable first"
+                self.status = "Not connected · select a port" if self.port_names else "No MIDI outputs available"
             if rescan and wanted:
                 if wanted in self.port_names:
                     self.connect(wanted)

@@ -47,7 +47,7 @@ class PygameTitanInput:
     def connect_initial(self) -> ConnectedDevice:
         devices = [pygame.joystick.Joystick(i) for i in range(pygame.joystick.get_count())]
         if not devices:
-            raise ValueError("No joystick detected. Connect the Titan and start again.")
+            raise ValueError("No joystick detected. Connect the Titan.")
 
         if self.requested_index is not None:
             if not 0 <= self.requested_index < len(devices):
@@ -119,9 +119,9 @@ class PygameTitanInput:
         return None
 
     def close(self) -> None:
-        if self.joystick is not None:
-            self.joystick.quit()
-            self.joystick = None
+        device, self.joystick = self.joystick, None
+        if device is not None:
+            device.quit()
 
     @staticmethod
     def _describe(index: int, device: pygame.joystick.Joystick) -> ConnectedDevice:
