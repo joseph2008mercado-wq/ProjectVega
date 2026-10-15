@@ -41,6 +41,8 @@ def write_report(window, destination: Path) -> None:
         "device_status": state.device.detail,
         "audio_status": state.audio_status,
         "bank": state.selection.bank,
+        "fret_sets": [{"name": s.name, "frets": s.frets} for s in window.runtime.settings.fret_sets],
+        "midi_channel": state.midi_channel,
         "open_strings": [s.note for s in state.voicing.strings],
         "midi_ports": list(state.midi_ports),
         "midi_status": state.midi_status,

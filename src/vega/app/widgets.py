@@ -5,6 +5,7 @@ from PySide6.QtGui import QColor, QFont, QIcon, QLinearGradient, QPainter, QPain
 from PySide6.QtWidgets import QFrame, QWidget
 
 from vega.model import FaceControl
+from vega.music.fret_sets import FACTORY_FRET_SETS, FretSet
 from vega.app.identity import icon_path
 
 
@@ -63,20 +64,20 @@ class FaceBank(QWidget):
     def __init__(self) -> None:
         super().__init__()
         self.faces = frozenset()
-        self.bank = 1
+        self.fret_set = FACTORY_FRET_SETS[0]
         self.setMinimumSize(260, 150)
         self.setToolTip("Left to right: FACE_1–FACE_4, then FACE_5–FACE_8")
         self.setAccessibleName("Held face controls: none")
 
     @property
     def fret_labels(self) -> tuple[int, ...]:
-        return tuple((self.bank - 1) * 8 + i for i in range(1, 9))
+        return self.fret_set.frets
 
-    def set_faces(self, faces: frozenset[FaceControl], bank: int = 1) -> None:
-        if faces != self.faces or bank != self.bank:
+    def set_faces(self, faces: frozenset[FaceControl], fret_set: FretSet = FACTORY_FRET_SETS[0]) -> None:
+        if faces != self.faces or fret_set != self.fret_set:
             self.faces = faces
-            self.bank = bank
-            self.setAccessibleName("Held frets: " + (", ".join(str((bank - 1) * 8 + f.value) for f in sorted(faces, key=lambda f: f.value)) or "open"))
+            self.fret_set = fret_set
+            self.setAccessibleName("Held frets: " + (", ".join(str(fret_set.frets[f.value - 1]) for f in sorted(faces, key=lambda f: f.value)) or "open"))
             self.update()
 
     def paintEvent(self, event) -> None:

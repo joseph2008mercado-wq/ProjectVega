@@ -32,6 +32,9 @@ function Assert-VegaDirectory([string]$Path) {
 
 function Read-VegaInstall([string]$Root) {
     Assert-VegaDirectory $Root
+    if (Test-Path -LiteralPath (Join-Path $Root 'unins000.exe')) {
+        throw 'This installation is now managed by Vega Setup. Use Windows Settings > Apps > Vega to uninstall; do not use the legacy copy/remove helpers.'
+    }
     $marker = Join-Path $Root 'install.json'
     if (-not (Test-Path -LiteralPath $marker)) {
         if ((Test-Path -LiteralPath $Root) -and (Get-ChildItem -LiteralPath $Root -Force)) {

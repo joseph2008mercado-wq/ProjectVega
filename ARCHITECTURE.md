@@ -6,14 +6,14 @@ Vega is a Windows 11 / Python 3.13 software-defined MIDI guitar controller.
 It reads the Qanba Titan as an ordinary game controller; it does not replace,
 suppress, or remap its Windows device. Concurrent access by a game remains a
 hardware/driver test, not a guarantee. The eight faces establish harmonic state;
-the lever performs a strum. Changing frets or banks alone never makes sound.
+the lever performs a strum. Changing frets or Fret Sets alone never makes sound.
 
 The implemented path is:
 
 ```text
 Titan -> pygame/SDL raw events -> verified PC+DP profile -> symbolic physical state
                                                         |                 |
-                                              bank + held faces       lever transitions
+                                           active FretSet + faces     lever transitions
                                                         |                 |
                                                   FretSelection      StrumRecognizer
                                                         |                 |
@@ -93,29 +93,37 @@ Both raw and gesture inspectors remain independent of music/GUI/output code.
 | `input/events.py`, `pygame_titan.py`, `desktop_source.py` | Timestamped raw button/axis/hat events, selected controller handle, hotplug and SDL pumping. |
 | `input/titan_profile.py`, `state.py`, `pipeline.py` | Raw-to-symbolic translation, held-face and secondary-button sets, lever x/y, applied symbolic edges, reset and recognizer invocation. |
 | `music/strum.py` | Pending immutable `StrumGesture(direction, character, timestamp, fingering)` and horizontal rearm state. No music interpretation. |
-| `music/harmony.py` | `FretSelection(bank, frets)`, symbolic bank actions, immutable `Harmony(pitches, root, pitch_classes, intervals, identity)`. |
+| `music/fret_sets.py`, `harmony.py` | Authoritative immutable `FretSet(name, frets)` and three factory defaults; `FretSelection(bank, frets)` (bank is the internal set index), symbolic selection actions; immutable `Harmony(pitches, root, pitch_classes, intervals, identity)`. |
 | `music/guitar.py` | Configurable `Fretboard(tuning)`, deterministic `voice`, `GuitarVoicing(strings)`, `VirtualString(string, note, fret)`; derived muted/open/fretted state. |
 | `music/plan.py` | Coverage/velocity/duration profiles and pure `plan_strum`; immutable `StrumPlan(direction, character, notes)` with per-string note, velocity, offset and duration. |
 | `midi/output.py` | Port lifecycle, deadline heap, active-note generation tokens, panic, Mido/RtMidi or PortMidi transport. |
 | `audio/preview.py`, `pygame_backend.py` | Explicit playback permission, triangle PCM, bounded SDL voices, plan scheduling and failure containment. No chord decisions. |
 | `runtime.py` | Owns input, active/queued bank, last gesture/selection/plan, both outputs and validated settings. Supplies immutable `ViewState`. |
 | `app/` | Shows snapshots and forwards user actions. Qt layouts, dark Aero painting, native window identity. No raw IDs or note scheduling. |
-| `settings.py` | Bounded settle, string spread and preview volume; tolerant load and atomic save. |
+| `settings.py` | Bounded timing/volume, Fret Sets/active set, MIDI port/channel and geometry; tolerant migration, retained unknown preferences and atomic save. |
 
 Only the runtime loop mutates performance state. UI callbacks use runtime methods
-or its MIDI service. Bank, port, channel and preview permission start fresh;
-bank 1, no connected MIDI output, channel 1, preview muted. No geometry is persisted.
+or its MIDI service. Active set, selected port, channel and clamped geometry are
+restored. Preview starts muted. Startup prefers exact “Vega Guitar” if present,
+then the saved port; a missing port stays disconnected, never an arbitrary synth.
 Settings writes are debounced; file failures are visible without stopping input.
 
-## Fret banking and harmony
+## Fret Sets and harmony
 
-`fret = (bank - 1) * 8 + face.value` maps banks 1/2/3 to 1–8/9–16/17–24.
+`fret = active_set.frets[face.value - 1]` resolves each symbolic FACE control.
+Exactly three immutable sets have eight integer slots in 1–24, with duplicate
+values allowed. Factory definitions exist only in `music/fret_sets.py`:
+Chromatic `(1,2,3,4,5,6,7,8)`, Major / Dominant `(2,4,5,7,9,10,11,12)`,
+Minor / Blues `(2,3,5,6,7,8,10,12)`. Names never affect musical interpretation.
+`FretSelection` sorts/deduplicates selected frets, while physical state retains
+each held FACE independently. The existing internal `bank` index/action names
+are retained to avoid unnecessary rewrites; the UI calls them Fret Sets.
 Next/Previous wrap. Requests while any faces are held **or a stroke is pending**
 are queued. Repeated requests advance the queued destination. Apply only after
-both clear. Disconnect cancels a queued request. At each finalized gesture the
-runtime captures its active bank before applying a waiting change, including
-when multiple events arrive in one batch. A captured fingering is never
-reinterpreted under the next bank.
+both clear. Disconnect cancels a queued request. Runtime snapshots the immutable
+mapping when a stroke starts settling, consumes it when that stroke finalizes,
+and captures each immediate stroke separately. Queued switches and editor Save
+cannot reinterpret a pending stroke, including multiple events in one batch.
 
 The verified OPTIONS press uses this same safe queue: banks 1→2→3→1.
 OPTIONS is outside the fingering set, so holding it cannot change harmony or
@@ -128,12 +136,13 @@ deduplicated modulo 12. A small interval-name dictionary recognizes root/unison,
 fifth, major, minor, dominant 7, major 7 and minor 7. Everything else is valid
 `Custom`, not rejected or silent. No face combination table is necessary.
 
-**Bank limitation:** all simultaneously held frets must come from the same
-eight-fret bank. Some recognized chord structures, notably sevenths, require
-wider chromatic spans and are not directly playable with this bank policy yet.
-The interpreter supports them as musical data; this stage does not add latching
-or cross-bank held notes. This is an intentional consequence of the requested
-input scheme, not an extra hidden chord-expansion rule.
+The Qt editor stages all three sets. Spin boxes constrain frets; names are trimmed,
+limited to 40 characters and default to “Set N” when blank. Save validates and
+atomically replaces the tuple, updates labels immediately and affects the next
+new stroke. Cancel changes nothing. Resets copy factory definitions into staged
+fields only. The dialog is window-modal but non-blocking; Qt timers keep running.
+Settings deserialize the entire mapping configuration or use factory defaults;
+other valid preferences survive. No cross-set held-note latching is introduced.
 
 An empty selection bypasses harmony search and returns exactly E2 A2 D3 G3 B3 E4.
 The system is a harmonic controller, not a literal six-string fingering input:
@@ -222,26 +231,39 @@ extra therefore uses pygame's bundled **PortMidi** transport, with optional
 does not require an untrusted third-party binary ([RtMidi releases](https://pypi.org/project/python-rtmidi/),
 [pygame MIDI](https://www.pygame.org/docs/ref/midi.html)).
 
-The user explicitly selects an existing output. Channel is 1–16 in the GUI,
+Startup prefers an exact “Vega Guitar” output, otherwise the saved selection.
+Users may explicitly select/disconnect an existing output. Channel is 1–16 in the GUI,
 converted to 0–15 on the wire. Note and velocity ranges are validated. A priority
 queue sends note-on/off; active `(channel,note)` entries own generation tokens.
 Retrigger sends off before on and invalidates the old release. Equal pitches on
 two strings share a MIDI channel, so MIDI retriggers rather than providing
 independent same-pitch string voices; per-string channels/MPE are deferred.
 
-Panic cancels all scheduled events, sends explicit offs, then sustain-off,
+Both GUI Panic controls stop preview and cancel settling (without rearming a
+held lever). MIDI Panic cancels all scheduled events, sends explicit offs, then sustain-off,
 All Notes Off (CC123) and All Sound Off (CC120) on all channels of the selected
 port. Use a dedicated Vega port. Channel/port changes, Titan disconnect, send
 failure and shutdown clean up. Cleanup continues best-effort after individual
 send failures. If the port/driver has vanished, delivery of panic cannot be
 guaranteed; use the DAW panic command if necessary.
 
-RtMidi can refresh connected-port enumeration; PortMidi caches its device list
-while initialized. GUI **Refresh disconnects/stops MIDI**, reinitializes the
-disconnected backend and rescans. Select the output again afterward. With
-PortMidi, disappearance detection while connected relies primarily on send
-errors; silent driver loss may require Refresh/restart. No automatic fallback to
-another port and no automatic reconnect that unexpectedly resumes sound.
+RtMidi can refresh connected-port enumeration; PortMidi caches its device list.
+GUI **Refresh stops MIDI, closes the handle, reinitializes and reconnects the same
+selection if available**. Queued notes are discarded, not replayed. The optional
+read-only `windows_ports.output_signature()` uses WinMM's device names/IDs every
+two seconds while connected; a changed inventory requests that same safe rescan.
+Send failures also disconnect/clear scheduling. A missing chosen port is retained
+as a preference, but only an explicit Refresh/selection retries it. There is no
+fallback to an arbitrary output. Drivers that conceal inventory changes may
+still require Refresh. MIDI problems do not stop input/preview.
+
+Native Windows MIDI Services endpoint hosting is not implemented. Inspection on
+Windows 11 25H2 build 26200.9457 found `midisrv` and the virtual transport, but no
+installed App SDK runtime/tooling or verified Python integration. Microsoft's
+virtual device API requires the new SDK and UMP-aware host/lifetime management;
+the service alone is not evidence that Vega can publish a port. A tested native
+bridge and DAW compatibility validation belong in a separate transport-only pass.
+See the sourced investigation in `docs/RELEASE_INTEGRATION.md`.
 
 ## Runtime, desktop and future background host
 
@@ -259,7 +281,30 @@ Responsive box/grid layouts stack below 780 logical pixels. A resizable
 `QScrollArea` makes short windows scroll; the 400×300 logical minimum is modest.
 Default size is at most 900×940, clamped inside current available screen bounds
 with titlebar/taskbar space. Qt logical pixels account for display scaling.
-No window geometry is persisted, so stale off-screen restoration cannot occur.
+Window geometry is saved through Qt, restored and clamped to the available screen.
+The dedicated Fret Set dialog is compact and uses layouts/range-controlled widgets.
+
+## Release / distribution layer
+
+PyInstaller builds a console-free one-folder application with Python/Qt/SDL and
+real Vega icon. The build collects installed and upstream version-matched license
+notices, including the project's Unlicense. Inno Setup 6 then packages that folder
+as `dist/installer/Vega-Setup.exe`: classic warm-gray/Tahoma wizard with per-window
+unthemed controls and simple generated Vega bitmaps, per-user privileges,
+stable `ProjectVega.Vega` AppId, `%LOCALAPPDATA%/Programs/Vega`, one Start Menu link
+and an optional Desktop task. No runtime dependence on the installer or developer
+tools. Version 0.2.0 is shared by project metadata, application and Setup.
+
+Inno's install log manages upgrades/uninstall; user settings live outside the
+installation and are never deleted. Legacy script-managed installations are
+recognized by their ownership marker and upgraded in place: root payload and
+matching shortcuts become current, old release folders/manifest remain as backups.
+An existing legacy Desktop shortcut is retained even when the new task is unchecked.
+Legacy helpers reject Setup-managed installs to avoid crossing ownership boundaries.
+Setup rejects unrelated nonempty destinations and conflicting shortcuts. No EULA,
+driver/service registration, auto-updater, admin hack or fabricated signature.
+The test compiler variant changes only identity/destination/shortcut names for
+safe disposable installation testing; production identity is unchanged.
 
 ## Repository structure
 
@@ -268,15 +313,15 @@ src/vega/
   model.py, runtime.py, settings.py
   input/        events.py, titan_profile.py, state.py, pipeline.py,
                 pygame_titan.py, desktop_source.py
-  music/        strum.py, harmony.py, guitar.py, plan.py
-  midi/         output.py
+  music/        strum.py, fret_sets.py, harmony.py, guitar.py, plan.py
+  midi/         output.py, windows_ports.py
   audio/        preview.py, pygame_backend.py
   app/          __main__.py, window.py, widgets.py, style.py, geometry.py,
-                identity.py, smoke.py, resources/
+                identity.py, smoke.py, fret_set_editor.py, resources/
   diagnostics/  inspect_titan.py, inspect_gestures.py
 tests/          input, music, preview, MIDI, runtime, settings, Qt and packaging checks
 scripts/        build/install/uninstall/smoke Windows helpers
-packaging/      Vega.spec, windows-entry.py
+packaging/      Vega.spec, Vega.iss, windows-entry.py
 ```
 
 ## Testing and technical risks
@@ -299,8 +344,8 @@ the frozen executable receive separate smoke checks.
 
 ## Stable decisions and next stages
 
-Stable: Python 3.13; verified PC+DP mapping; symbolic-only musical input; arithmetic
-banks; held-fret harmonic state; silent fret changes; open-state guitar; deterministic
+Stable: Python 3.13; verified PC+DP mapping; symbolic-only musical input; three editable
+Fret Sets; held-fret harmonic state; silent fret changes; open-state guitar; deterministic
 voicing; shared plans; RIGHT low→high and LEFT high→low; FULL/NORMAL/STRICT coverage;
 optional muted-start preview; existing-port MIDI; GUI-independent runtime.
 
@@ -310,10 +355,11 @@ slides, capo, keyswitches, tuning UI or instrument-specific profiles in this sta
 
 1. **Done:** raw discovery, verified profile and deterministic gesture recognizer.
 2. **Done:** desktop preview, identity, packaging and safe local shortcuts.
-3. **Implemented now:** banks, harmony, fretboard/voicing, shared plans and MIDI routing.
-4. **Next validation:** connect a real loopback port and FL Studio;
+3. **Implemented:** harmony, fretboard/voicing, shared plans and MIDI routing.
+4. **Release integration:** editable Fret Sets, robust existing-port MIDI and classic Setup.
+5. **Next validation:** connect a real loopback port and FL Studio;
    play open/F-major strums, inspect spacing, retrigger notes and test panic/unplug.
-5. **Later, measured improvements:** background/tray host, scheduling worker if
+6. **Later, measured improvements:** background/tray host, scheduling worker if
    justified, broader harmonic input policy, articulations and integrated endpoint.
 
 ## Beginner summary and next live check
@@ -328,7 +374,7 @@ Keep PC+DP and launch Vega:
 .\.venv\Scripts\python.exe -m vega.app
 ```
 
-Press/release Options three times: the bank display should cycle 1–8→9–16→17–24→1–8
+Press/release Options three times: the Fret Set display should cycle 1→2→3→1
 without sound. Hold a FACE control and press Options: the current fret remains
 unchanged until the faces and any pending stroke clear. Then connect the existing
 MIDI cable to the DAW and verify open/F-major strokes, spacing and panic/unplug.

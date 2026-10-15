@@ -1,9 +1,10 @@
-"""Arithmetic fret banks and lossless, root-relative harmony interpretation."""
+"""Mapped fret selection and lossless, root-relative harmony interpretation."""
 
 from dataclasses import dataclass
 from enum import Enum, auto
 
 from vega.model import FaceControl
+from vega.music.fret_sets import FACTORY_FRET_SETS, FretSet
 
 NOTE_NAMES = ("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B")
 
@@ -34,8 +35,12 @@ class FretSelection:
             raise ValueError("expected bank 1–3 and selected frets 1–24")
 
     @classmethod
-    def from_faces(cls, faces: frozenset[FaceControl], bank: int) -> "FretSelection":
-        return cls(bank, tuple(sorted((bank - 1) * 8 + face.value for face in faces)))
+    def from_faces(cls, faces: frozenset[FaceControl], bank: int,
+                   fret_set: FretSet | None = None) -> "FretSelection":
+        if bank not in (1, 2, 3):
+            raise ValueError("Fret Set index must be 1–3")
+        mapping = fret_set or FACTORY_FRET_SETS[bank - 1]
+        return cls(bank, tuple(sorted({mapping.frets[face.value - 1] for face in faces})))
 
 
 @dataclass(frozen=True)

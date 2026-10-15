@@ -11,13 +11,14 @@ from vega.music.harmony import BankAction, FretSelection, interpret, next_bank
 from vega.music.guitar import Fretboard, STANDARD_TUNING, voice
 from vega.music.plan import ScheduledStringEvent, plan_strum
 from vega.music.strum import StrumGesture
+from vega.music.fret_sets import FACTORY_FRET_SETS
 
 
 class MusicTests(unittest.TestCase):
-    def test_three_banks_arithmetic_and_wrap(self):
+    def test_three_factory_sets_and_wrap(self):
         for bank in (1, 2, 3):
             self.assertEqual(FretSelection.from_faces(frozenset(FaceControl), bank).frets,
-                             tuple(range((bank - 1) * 8 + 1, bank * 8 + 1)))
+                             FACTORY_FRET_SETS[bank - 1].frets)
         self.assertEqual(next_bank(3, BankAction.BANK_NEXT), 1)
         self.assertEqual(next_bank(1, BankAction.BANK_PREVIOUS), 3)
         with self.assertRaises(ValueError): next_bank(0, BankAction.BANK_NEXT)
@@ -99,9 +100,15 @@ class MusicTests(unittest.TestCase):
         self.assertEqual(harmony.identity, "Custom")
 
     def test_invalid_scheduled_notes_and_spread(self):
-        for n, v, o, d in ((128, 90, 0, 1), (0, 0, 0, 1), (40, 90, -1, 1),
+        for n, v, o, d in ((128, 90, 0, 1), (-1, 90, 0, 1), (0, 0, 0, 1), (0, 128, 0, 1), (40, 90, -1, 1),
                            (40, 90, float("nan"), 1), (40, 90, 0, 0)):
             with self.assertRaises(ValueError): ScheduledStringEvent(n, 6, v, o, d)
         with self.assertRaises(ValueError):
             plan_strum(StrumGesture(StrumDirection.RIGHT, StrumCharacter.FULL, 0, frozenset()),
                        voice(interpret(FretSelection(1, ()))), 0)
+
+    def test_midi_note_and_velocity_boundary_values(self):
+        for pitch in (0, 127):
+            for velocity in (1, 127):
+                note = ScheduledStringEvent(pitch, 1, velocity, 0, .1)
+                self.assertEqual((note.note, note.velocity), (pitch, velocity))

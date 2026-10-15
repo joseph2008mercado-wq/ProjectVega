@@ -54,7 +54,7 @@ def main(argv: list[str] | None = None) -> int:
     preview = PreviewSynth(PygameAudioBackend(), settings.preview_volume)
     runtime = VegaRuntime(DesktopInputSource(device_index=args.device_index), preview, settings,
                           clock=time.perf_counter)
-    runtime.midi.refresh()
+    runtime.midi.restore(settings.midi_port)
     window = VegaWindow(runtime, store)
     window.show()
     if app.platformName() == "windows":

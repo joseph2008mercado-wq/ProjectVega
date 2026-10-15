@@ -44,7 +44,7 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual(self.runtime.bank, 2)
         self.source.events = [RawButtonEvent(2, True, 1, 1)]
         self.runtime.tick(1)
-        self.assertEqual(self.runtime.snapshot().selection.frets, (9,))
+        self.assertEqual(self.runtime.snapshot().selection.frets, (2,))
         self.assertFalse(self.audio.requests)
         self.assertIsNone(self.runtime.latest_plan)
 
@@ -192,9 +192,9 @@ class RuntimeTests(unittest.TestCase):
                               RawButtonEvent(2, True, 1.003, 1), RawHatEvent(0, -1, 0, 1.004, 1)]
         result = self.runtime.tick(1.02)
         self.assertEqual(len(result), 2)
-        self.assertEqual(self.runtime.latest_selection.frets, (9,))
+        self.assertEqual(self.runtime.latest_selection.frets, (2,))
         pitches = [{n.note % 12 for n in p.notes} for p, _ in self.audio.requests]
-        self.assertEqual(pitches, [{5}, {1}])
+        self.assertEqual(pitches, [{5}, {6}])
 
     def connect(self):
         self.source.events = [DeviceStatus(True, "Titan", "Connected")]

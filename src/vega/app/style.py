@@ -44,4 +44,11 @@ QStatusBar { background: qlineargradient(x1:0,y1:0,x2:0,y2:1,
     stop:0 #514559, stop:0.08 #302639, stop:1 #211a29);
     border-top: 1px solid #6c5d77; color: #c5b9cd; font-size: 12px; }
 QStatusBar::item { border: none; }
+QDialog { background: #251d30; }
+QTabWidget::pane { background: #211a29; border: 1px solid #75617f; }
+QTabBar::tab { color: #c9becf; background: #33283f; border: 1px solid #75617f;
+    padding: 5px 12px; margin-right: 2px; }
+QTabBar::tab:selected { color: #eee0c9; background: #514358; border-bottom-color: #514358; }
+QLineEdit { color: #e6e0e7; background: #17121f; border: 1px solid #75617f;
+    padding: 5px; selection-background-color: #6b566c; }
 """

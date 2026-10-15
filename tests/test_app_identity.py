@@ -23,7 +23,7 @@ class IdentityTests(unittest.TestCase):
         self.assertEqual(identity.APP_VERSION, data["project"]["version"])
         self.assertEqual(identity.APP_NAME, "Vega")
         self.assertEqual(identity.EXECUTABLE_NAME, "Vega.exe")
-        self.assertEqual(identity.APP_DESCRIPTION, "Project Vega Guitar Control Panel")
+        self.assertEqual(identity.APP_DESCRIPTION, "Vega Guitar Controller")
 
     def test_icon_contains_all_real_resolutions(self):
         icon = identity.icon_path().read_bytes()

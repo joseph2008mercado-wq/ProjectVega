@@ -33,6 +33,11 @@ a = Analysis(
     excludes=["pytest", "unittest", "pygame.tests", "pygame.examples", "tkinter"],
     noarchive=False,
 )
+# Qt's broad image/input hooks also collect PDF and Virtual Keyboard plugins.
+# Vega uses neither; omit these GPL-only optional components and their QML tree.
+unused_qt = {"qpdf.dll", "qtvirtualkeyboardplugin.dll", "Qt6Pdf.dll", "Qt6VirtualKeyboard.dll",
+             "Qt6Qml.dll", "Qt6QmlMeta.dll", "Qt6QmlModels.dll", "Qt6QmlWorkerScript.dll", "Qt6Quick.dll"}
+a.binaries = [entry for entry in a.binaries if Path(entry[0]).name not in unused_qt]
 pyz = PYZ(a.pure)
 exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name=APP_NAME,
           console=False, icon=str(icon), version=version, upx=False)

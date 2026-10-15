@@ -28,7 +28,7 @@ class SettingsTests(unittest.TestCase):
             store = SettingsStore(Path(directory) / "nested" / "settings.json")
             store.save(Settings(12, 0.6))
             self.assertEqual(store.load(), Settings(12, 0.6))
-            self.assertEqual(set(json.loads(store.path.read_text())), {"settle_ms", "preview_volume", "spread_ms"})
+            self.assertEqual(set(json.loads(store.path.read_text())), set(Settings.__dataclass_fields__))
             store.path.write_text('{"settle_ms": 6, "preview_volume": 0.7, "muted": false}')
             self.assertEqual(store.load(), Settings(6, 0.7))
 

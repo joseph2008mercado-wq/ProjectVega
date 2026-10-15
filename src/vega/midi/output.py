@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from vega.music.plan import StrumPlan
+from vega.midi.windows_ports import output_signature
 
 
 @dataclass(frozen=True)
@@ -40,7 +41,7 @@ class MidoBackend:
             self.mido = mido
             try:
                 import rtmidi  # Optional: released Windows wheels currently stop at Python 3.12.
-            except ImportError:
+            except (ImportError, OSError):
                 self.fallback = PygameMidiBackend()
                 self.backend = self.fallback
             else:
@@ -58,6 +59,9 @@ class MidoBackend:
             self.fallback.open(name)
             return
         self.port = self.backend.open_output(name)  # Deliberately NOT virtual=True.
+
+    def ports_changed(self) -> bool:
+        return bool(self.fallback and self.fallback.ports_changed())
 
     def send(self, message: MidiMessage) -> None:
         if self.fallback:
@@ -90,6 +94,7 @@ class PygameMidiBackend:
     def __init__(self) -> None:
         self.api = None
         self.port = None
+        self._signature = None
 
     def _devices(self) -> dict[str, int]:
         if self.api is None:
@@ -119,6 +124,10 @@ class PygameMidiBackend:
         if name not in devices:
             raise OSError("MIDI port is no longer available; press Refresh")
         self.port = self.api.Output(devices[name], latency=0)
+        self._signature = output_signature()
+
+    def ports_changed(self) -> bool:
+        return self._signature != output_signature()
 
     def send(self, message: MidiMessage) -> None:
         import mido
@@ -158,8 +167,27 @@ class MidiOutput:
         self._queue: list[tuple] = []
         self._serial = 0
         self._next_scan = 0.0
+        self.preferred_port = ""
 
-    def refresh(self) -> None:
+    def restore(self, saved_port: str) -> None:
+        """Startup only: exact Vega Guitar wins; never pick an arbitrary synth."""
+        self.refresh()
+        self.preferred_port = "Vega Guitar" if "Vega Guitar" in self.port_names else saved_port
+        if self.preferred_port in self.port_names:
+            self.connect(self.preferred_port)
+        elif self.preferred_port:
+            self.status = f"Selected MIDI port is no longer available · {self.preferred_port}"
+
+    def select(self, name: str) -> None:
+        self.preferred_port = name
+        self.connect(name)
+
+    def refresh(self, *, rescan: bool = False) -> None:
+        # PortMidi caches its list. Explicit Refresh stops notes and closes the
+        # handle before reinitialization, then reopens the same chosen port.
+        wanted = self.port_name or self.preferred_port
+        if rescan:
+            self.disconnect()
         try:
             self.port_names = self.backend.ports()
             if self.port_name and self.port_name not in self.port_names:
@@ -167,15 +195,23 @@ class MidiOutput:
                 self.status = "Port disappeared · reconnect after Refresh"
             elif not self.port_name:
                 self.status = "Not connected · select a port" if self.port_names else "No ports · create or enable a MIDI cable first"
+            if rescan and wanted:
+                if wanted in self.port_names:
+                    self.connect(wanted)
+                else:
+                    self.status = f"Port disappeared · {wanted} · reconnect after Refresh"
         except Exception as exc:
             self._failed(exc)
             self.port_names = ()
 
     def connect(self, name: str) -> None:
+        if name and name == self.port_name:
+            return
         self.disconnect()
         if not name:
             return
         try:
+            self.preferred_port = name
             self.backend.open(name)
             self.port_name = name
             self.status = f"Connected · {name}"
@@ -200,10 +236,11 @@ class MidiOutput:
             heapq.heappush(self._queue, (now + note.offset + note.duration, token, False, channel, note.note, 0))
 
     def tick(self, now: float) -> None:
-        if self.port_name and now >= self._next_scan:
-            self._next_scan = now + 2.0
-            self.refresh()
         try:
+            if self.port_name and now >= self._next_scan:
+                self._next_scan = now + 2.0
+                changed = getattr(self.backend, "ports_changed", lambda: False)()
+                self.refresh(rescan=changed)
             while self._queue and self._queue[0][0] <= now:
                 deadline, token, on, channel, note, velocity = heapq.heappop(self._queue)
                 key = (channel, note)

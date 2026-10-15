@@ -4,8 +4,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "project-vega"
-version = "0.1.0"
-description = "Qanba Titan gesture controller and optional Vega desktop preview"
+version = "0.2.0"
+description = "Vega Guitar Controller"
+license = "Unlicense"
+license-files = ["LICENSE"]
 requires-python = ">=3.13,<3.14"
 dependencies = ["pygame==2.6.1"]
 

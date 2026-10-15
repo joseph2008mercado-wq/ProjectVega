@@ -90,3 +90,7 @@ class StrumRecognizer:
         """Drop a pending stroke when its controller disconnects."""
         self._previous_x = 0
         self._pending = None
+
+    def cancel_pending(self) -> None:
+        """Panic cancels settling without rearming a still-held lever."""
+        self._pending = None

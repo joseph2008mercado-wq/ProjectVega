@@ -185,3 +185,77 @@ class MidiTests(unittest.TestCase):
             backend = MidoBackend()
             self.assertEqual(backend.ports(), ("Vega Guitar",))
             self.assertIsInstance(backend.fallback, PygameMidiBackend)
+
+    def test_startup_prefers_exact_vega_then_saved_never_arbitrary(self):
+        self.output.disconnect()
+        self.output.restore("Other")
+        self.assertEqual(self.output.port_name, "Vega Guitar")
+        self.output.disconnect()
+        self.backend.names = ("Other", "Microsoft GS Wavetable Synth")
+        self.output.restore("Other")
+        self.assertEqual(self.output.port_name, "Other")
+        self.output.disconnect()
+        self.output.restore("Missing")
+        self.assertEqual(self.output.port_name, "")
+        self.assertIn("no longer available", self.output.status)
+        self.output.restore("")
+        self.assertEqual(self.output.port_name, "")
+
+    def test_refresh_cleans_notes_reopens_same_port_and_remembers_missing(self):
+        self.output.select("Other")
+        self.output.submit(sample_plan(), 1)
+        self.output.tick(1)
+        self.output.refresh(rescan=True)
+        self.assertEqual(self.output.port_name, "Other")
+        self.assertFalse(self.output.active)
+        self.assertFalse(self.output._queue)
+        self.backend.names = ("Vega Guitar",)
+        self.output.refresh(rescan=True)
+        self.assertFalse(self.output.port_name)
+        self.assertIn("disappeared", self.output.status)
+        self.backend.names = ("Other",)
+        self.output.refresh(rescan=True)
+        self.assertEqual(self.output.port_name, "Other")
+        self.output.select("")
+        self.output.refresh(rescan=True)
+        self.assertFalse(self.output.port_name)
+
+    def test_all_characters_directions_channels_and_repeat_panic(self):
+        for channel in (1, 16):
+            self.output.set_channel(channel)
+            for character in StrumCharacter:
+                for direction in StrumDirection:
+                    self.backend.messages.clear()
+                    plan = sample_plan(character, direction)
+                    self.output.submit(plan, 100)
+                    for note in plan.notes:
+                        self.output.tick(100 + note.offset)
+                    ons = [m for m in self.backend.messages if m.kind == "note_on"]
+                    self.assertEqual([m.note for m in ons], [n.note for n in plan.notes])
+                    self.assertEqual([m.velocity for m in ons], [n.velocity for n in plan.notes])
+                    self.assertTrue(all(m.channel == channel - 1 for m in ons))
+                    self.output.tick(102)
+                    self.assertEqual(len([m for m in self.backend.messages if m.kind == "note_off"]), len(plan.notes))
+                    self.output.panic()
+                    self.output.panic()
+                    self.assertFalse(self.output.active)
+                    self.assertFalse(self.output._queue)
+
+    def test_native_inventory_change_requests_safe_rescan_only_every_two_seconds(self):
+        with patch.object(self.backend, "ports_changed", create=True, return_value=True) as check:
+            self.output.submit(sample_plan(), 1)
+            self.output.tick(1)
+            self.assertEqual(check.call_count, 1)
+            self.assertFalse(self.output._queue)
+            self.output.tick(2)
+            self.assertEqual(check.call_count, 1)
+            self.output.tick(3)
+            self.assertEqual(check.call_count, 2)
+
+    def test_portmidi_change_signature_does_not_close_live_handle(self):
+        backend = PygameMidiBackend()
+        backend._signature = ((1, 2, "Cable", 1),)
+        with patch("vega.midi.output.output_signature", return_value=backend._signature):
+            self.assertFalse(backend.ports_changed())
+        with patch("vega.midi.output.output_signature", return_value=()):
+            self.assertTrue(backend.ports_changed())

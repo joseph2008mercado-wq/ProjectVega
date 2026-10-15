@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import time
 
-from PySide6.QtCore import QTimer, Qt
+from PySide6.QtCore import QByteArray, QTimer, Qt
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
     QBoxLayout, QComboBox, QDoubleSpinBox, QFrame, QGridLayout, QHBoxLayout, QLabel, QLayout, QMainWindow,
@@ -15,6 +15,7 @@ from vega.app.style import STYLE
 from vega.app.widgets import FaceBank, GlassPanel, LeverView, VegaMark
 from vega.app.identity import APP_NAME, icon_path
 from vega.app.geometry import initial_size
+from vega.app.fret_set_editor import FretSetEditor
 from vega.music.harmony import BankAction, note_name
 from vega.runtime import VegaRuntime
 from vega.settings import SettingsStore
@@ -52,6 +53,12 @@ class VegaWindow(QMainWindow):
         self.resize(*initial_size(available.width(), available.height()))
         self.setMinimumSize(min(400, available.width()), min(300, available.height()))
         self.move(available.x() + 24, available.y() + 24)
+        geometry = runtime.settings.window_geometry
+        if geometry:
+            self.restoreGeometry(QByteArray.fromBase64(geometry.encode("ascii", errors="ignore")))
+            self.resize(min(self.width(), available.width() - 24), min(self.height(), available.height() - 64))
+            self.move(max(available.x(), min(self.x(), available.right() - self.width() - 16)),
+                      max(available.y(), min(self.y(), available.bottom() - self.height() - 40)))
         self.setStyleSheet(STYLE)
         body = QWidget()
         body.setObjectName("body")
@@ -91,11 +98,13 @@ class VegaWindow(QMainWindow):
         controls = QBoxLayout(QBoxLayout.Direction.LeftToRight)
         self.controls_layout = controls
         controls.setSpacing(12)
-        faces_panel, faces_layout = panel("Fret bank")
+        faces_panel, faces_layout = panel("FRET SET")
+        self.set_name = label("", "value")
+        faces_layout.addWidget(self.set_name)
         bank_row = QHBoxLayout()
         self.bank_previous = QPushButton("Previous")
         self.bank_next = QPushButton("Next")
-        self.bank_label = label("1–8", "value")
+        self.bank_label = label("Set 1 of 3", "muted")
         bank_row.addWidget(self.bank_previous)
         bank_row.addWidget(self.bank_label, 1)
         bank_row.addWidget(self.bank_next)
@@ -106,7 +115,9 @@ class VegaWindow(QMainWindow):
         self.bank_pending = label("", "muted")
         faces_layout.addWidget(self.held_frets)
         faces_layout.addWidget(self.bank_pending)
-        self.bank_next.setToolTip("Options also advances the bank. Changes wait for held buttons and pending strokes.")
+        self.bank_next.setToolTip("Options also advances the set. Changes wait for held buttons and pending strokes.")
+        self.edit_sets = QPushButton("Edit Fret Sets...")
+        faces_layout.addWidget(self.edit_sets)
         faces_layout.addStretch()
         controls.addWidget(faces_panel, 1)
         lever_panel, lever_layout = panel("Lever")
@@ -209,12 +220,13 @@ class VegaWindow(QMainWindow):
         self.midi_port.setMinimumContentsLength(12)
         self.midi_port.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
         self.midi_refresh = QPushButton("Refresh")
-        self.midi_refresh.setToolTip("Stop MIDI, disconnect and rescan ports. Select an output again to connect.")
+        self.midi_refresh.setToolTip("Stop MIDI notes, rescan ports and reconnect the selected output if available.")
         port_row.addWidget(self.midi_port, 1)
         port_row.addWidget(self.midi_refresh)
         midi_layout.addLayout(port_row)
         self.midi_status = label(runtime.midi.status, "muted")
         midi_layout.addWidget(self.midi_status)
+        midi_layout.addWidget(label("DAW routing requires an existing loopback port, preferably named Vega Guitar.", "muted"))
         channel_row = QHBoxLayout()
         channel_row.addWidget(label("Channel"))
         self.midi_channel = QSpinBox()
@@ -250,10 +262,11 @@ class VegaWindow(QMainWindow):
         self.panic.clicked.connect(runtime.panic)
         self.bank_previous.clicked.connect(lambda: self.change_bank(BankAction.BANK_PREVIOUS))
         self.bank_next.clicked.connect(lambda: self.change_bank(BankAction.BANK_NEXT))
+        self.edit_sets.clicked.connect(self.open_set_editor)
         self.midi_refresh.clicked.connect(self.refresh_ports)
         self.midi_port.activated.connect(self.connect_port)
-        self.midi_channel.valueChanged.connect(runtime.midi.set_channel)
-        self.midi_panic.clicked.connect(runtime.midi.panic)
+        self.midi_channel.valueChanged.connect(self.change_midi_channel)
+        self.midi_panic.clicked.connect(runtime.panic)
         self.timer = QTimer(self)
         self.timer.setTimerType(Qt.TimerType.PreciseTimer)
         self.timer.setInterval(2)
@@ -274,14 +287,16 @@ class VegaWindow(QMainWindow):
         state = self.runtime.snapshot()
         if state == self.previous:
             return
+        if self.previous is not None and self.previous.selection.bank != state.selection.bank:
+            self.save_timer.start()
         self.previous = state
         self.device_name.setText(state.device.name)
         self.device_status.setText(("● " if state.device.connected else "○ ") + state.device.detail)
-        self.faces.set_faces(state.faces, state.selection.bank)
-        start = (state.selection.bank - 1) * 8 + 1
-        self.bank_label.setText(f"{start}–{start + 7}")
+        self.faces.set_faces(state.faces, state.fret_set)
+        self.set_name.setText(state.fret_set.name)
+        self.bank_label.setText(f"Set {state.selection.bank} of 3")
         self.held_frets.setText("Held frets: " + (", ".join(map(str, state.selection.frets)) or "Open"))
-        self.bank_pending.setText(f"Bank {state.pending_bank} queued · release held buttons" if state.pending_bank else "")
+        self.bank_pending.setText(f"Set {state.pending_bank} queued · release held buttons" if state.pending_bank else "")
         self.bank_pending.setVisible(state.pending_bank is not None)
         self.harmony.setText(state.harmony.label)
         for widget, string in zip(self.string_labels, state.voicing.strings):
@@ -324,18 +339,33 @@ class VegaWindow(QMainWindow):
         self.runtime.bank_action(action)
         self.refresh()
 
+    def open_set_editor(self) -> None:
+        # Non-blocking window-modal dialog; input and scheduling timers continue.
+        self.editor = FretSetEditor(self.runtime.settings.fret_sets, self.runtime.bank, self)
+        self.editor.accepted.connect(self.apply_set_editor)
+        self.editor.open()
+
+    def apply_set_editor(self) -> None:
+        self.runtime.set_fret_sets(self.editor.result_sets)
+        self.save_settings()
+        self.refresh()
+
+    def change_midi_channel(self, channel: int) -> None:
+        self.runtime.set_midi_channel(channel)
+        self.save_timer.start()
+
     def change_spread(self, value: float) -> None:
         self.runtime.set_spread_ms(value)
         self.save_timer.start()
         self.refresh()
 
     def refresh_ports(self) -> None:
-        self.runtime.midi.disconnect()
-        self.runtime.midi.refresh()
+        self.runtime.midi.refresh(rescan=True)
         self.refresh()
 
     def connect_port(self, index: int) -> None:
-        self.runtime.midi.connect(self.midi_port.itemData(index) or "")
+        self.runtime.connect_midi(self.midi_port.itemData(index) or "")
+        self.save_timer.start()
         self.refresh()
 
     def adapt_layout(self) -> None:
@@ -378,5 +408,6 @@ class VegaWindow(QMainWindow):
         self.save_timer.stop()
         self.flash_timer.stop()
         self.runtime.close()
+        self.runtime.settings.window_geometry = bytes(self.saveGeometry().toBase64()).decode("ascii")
         self.save_settings()
         event.accept()

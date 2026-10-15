@@ -3,8 +3,8 @@
 from pathlib import Path
 
 APP_NAME = "Vega"
-APP_DESCRIPTION = "Project Vega Guitar Control Panel"
-APP_VERSION = "0.1.0"
+APP_DESCRIPTION = "Vega Guitar Controller"
+APP_VERSION = "0.2.0"
 APP_USER_MODEL_ID = "ProjectVega.Vega"
 EXECUTABLE_NAME = "Vega.exe"
 
