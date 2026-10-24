@@ -1,9 +1,10 @@
 # Clean Windows acceptance — developer checklist
 
-This is release testing, **not an end-user prerequisite**. Reduced-PATH host tests
-do not prove clean-PC operation. Record the Setup SHA-256, Windows edition/build,
-results and screenshots in the release report. Do not claim a successful
-clean-machine test without actually completing it.
+This is release testing, **not an end-user prerequisite**. The project owner
+reported that the v1.0.0 installer with SHA-256
+`5749330e702f389a67958b8960de29d7e380dcded5a05c8136d2701616051105`
+passed on another Windows environment on 2026-10-24. Screenshots and exact OS
+build were not supplied. Use this checklist again for future builds.
 
 Use a clean Windows 11 x64 PC, Sandbox or disposable VM without Python, Git, Inno
 Setup, build tools, Vega source, MIDI cable, DAW or VST. Use Sandbox only where
@@ -41,11 +42,11 @@ Send back the installer SHA-256, Windows edition/build, pass/fail for steps 1–
 and screenshots or exact text of any failure. Specifically confirm that custom
 settings and `keep.txt` survived reinstall/uninstall. If Windows Application
 Control blocks Setup, Vega or uninstall, report which executable and the message;
-do not disable security policy. This build PC blocked the unsigned test uninstaller,
-so successful uninstall on the other environment is still required.
+do not disable security policy. This build PC blocked the unsigned test uninstaller;
+the owner reports that uninstall passed on the other environment.
 
 For previous-version upgrade testing, install the preceding official Setup first,
-save settings, then install the candidate. Both must use `ProjectVega.Vega`.
+save settings, then install the v1.0.0 release. Both must use `ProjectVega.Vega`.
 `scripts/test-installer.ps1` separately exercises synthetic legacy migration,
 unsafe manifests and unknown-file protection with an isolated test identity.
 

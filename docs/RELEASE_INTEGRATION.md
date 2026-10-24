@@ -1,13 +1,18 @@
-# Vega v1.0 release-candidate verification
+# Vega v1.0.0 release verification
 
 Stabilization date: **2026-10-15**. Base: `d8a4a882fd5c0fe700a53a0303778b6bc6a83a72`.
-Version metadata is 1.0.0. No public release or tag is created by these build scripts.
+Version metadata is 1.0.0. The tested installer was published on 2026-10-24 as
+[v1.0.0](https://github.com/tamarin08/ProjectVega/releases/tag/v1.0.0), tagged at
+`ca6bd1353929f4205df5897c6835a1b7d7446f90`. GitHub confirms the uploaded
+34,914,063-byte installer has SHA-256
+`5749330e702f389a67958b8960de29d7e380dcded5a05c8136d2701616051105`.
 
-**Release gate:** feature-complete candidate, not yet certified on a clean Windows
-machine. The full clean-machine and physical/live-DAW checklist is explicit in
-[CLEAN_WINDOWS_TEST.md](CLEAN_WINDOWS_TEST.md). Do not describe those checks as
-completed until their results are recorded. Source stabilization can be committed
-without claiming public-release acceptance.
+**Release acceptance:** on 2026-10-24 the project owner reported that this exact
+installer passed the clean Windows install/reinstall/uninstall checklist and the
+packaged Titan and FL Studio checks. The owner did not supply screenshots, Windows
+build details or individual measurements; those results are recorded as
+user-reported, not independently reproduced on this build PC. See the
+[clean Windows checklist](CLEAN_WINDOWS_TEST.md) and host evidence below.
 
 ## Final pass report
 
@@ -88,19 +93,18 @@ without claiming public-release acceptance.
     and unknown files. No “delete settings” action or recursive cleanup.
 26. **Zero developer prerequisites:** finished Setup consumes only bundled payload.
     No pip, venv, Git, repository, compiler, source download or packaging step is
-    executed on the user's PC. Full clean-VM validation is still pending below.
+    executed on the user's PC. The owner reports successful clean Windows testing.
 27. **Python:** bundled Python 3.13 runtime; no end-user Python installation required.
 28. **Inno Setup:** build-machine compiler only; end users run the finished EXE.
 29. **Build tools:** not needed by installed Vega. Python/Qt/SDL/PortMidi and required
     VC runtime DLLs are bundled. A build-time inventory rejects incomplete payloads.
 30. **MIDI loopback:** optional post-install setup for same-PC DAW routing only.
     No loopback, MIDI ports, DAW, VST or Titan is required to launch/edit settings.
-31. **Clean Windows result:** unavailable here. WindowsSandbox.exe and checked VM
-    tools/services were not present. No OS feature or hypervisor was enabled.
-    Host isolated installs/reduced-PATH runs are useful but not equivalent to a
-    clean Windows guest. Follow every step in CLEAN_WINDOWS_TEST.md before public
-    sign-off; no missing dependency is being reclassified as a user prerequisite.
-    The project owner confirmed another Windows environment is available for testing.
+31. **Clean Windows result:** unavailable on this build PC: WindowsSandbox.exe and
+    checked VM tools/services were absent. The owner reports all checks passed on
+    another Windows environment using the exact published installer, including
+    uninstall and settings/unknown-file preservation. No screenshots or OS build
+    details were supplied. Host reduced-PATH checks are separate evidence.
 32. **Licenses:** Unlicense unchanged; no EULA. Versioned upstream/installed third-party
     notices and sources inventory included. Qt/SDL remain replaceable dynamic
     libraries. Unused Qt PDF/Virtual Keyboard/QML payload remains excluded.
@@ -121,21 +125,20 @@ without claiming public-release acceptance.
     registration and installed editor/settings persistence passed. Separate Setup
     runs verified legacy cleanup and unsafe-manifest preservation. The complete
     installer matrix did not finish: Windows policy blocked the test uninstaller.
-    Uninstall and the later fresh-legacy/foreign-folder scenarios remain pending.
-38. **Physical Titan remaining:** final packaged face/Options/arc/settle performance,
-    reconnect and audible preview. Earlier hardware mapping/gesture validation is
-    retained; no new claim of physical v1 acceptance is made.
-39. **Live FL Studio remaining:** real loopback/VST recording, timing under load,
-    retrigger, Panic, channel/port changes, disappearing port and unplug/shutdown.
-    Generic setup is documented; this pass does not claim live DAW testing.
+    This host's uninstall and later fresh-legacy/foreign-folder scenarios remain
+    unverified; the owner reports clean Windows uninstall passed elsewhere.
+38. **Physical Titan:** the owner reports packaged Titan checks passed. The build
+    PC did not independently repeat physical face/Options/arc/settle, reconnect or
+    audible preview tests during this pass; earlier mapping tests are retained.
+39. **Live FL Studio:** the owner reports the DAW checks passed. No recording,
+    timing measurements or screenshots were supplied for independent review.
 40. **Known v1 limits:** PC+DP only, no native virtual endpoint, no hard realtime,
     heuristic voicing, triangle preview, same-channel equal-pitch retrigger,
     one runtime per process without single-instance enforcement, unsigned binaries.
     A vanished driver cannot be guaranteed to receive note-offs; use DAW Panic.
-41. **Ready to tag v1.0.0?** Feature-complete candidate with explicit remaining
-    acceptance steps, not unconditional public-release approval. Keep the tag
-    unpublished until clean Windows and final physical/live-DAW acceptance are
-    signed off. No feature expansion is needed to perform those checks.
+41. **Release outcome:** v1.0.0 was tagged and published with the exact installer
+    the owner confirmed testing. Host-specific unfinished checks and lack of
+    independent external test artifacts are documented here, not counted as passes.
 
 ## Verification evidence
 
@@ -174,7 +177,7 @@ without claiming public-release acceptance.
   hash check on legacy shortcut targets was compiled and policy-tested, not
   exercised in that interrupted end-to-end matrix.
 
-### Explicitly incomplete
+### Build-PC limitation and owner acceptance
 
 Windows Application Control blocked `installed/unins000.exe` in the GUID test
 fixture. Code Integrity event 3077 identified an enterprise signing-policy block.
@@ -183,13 +186,15 @@ or bypassed. Only the GUID test shortcuts and registration were manually removed
 after verifying their targets; fixture files/logs remain for diagnosis. The real
 Vega installation and personal settings were not cleanup targets.
 
-Run the clean-machine checklist on the owner's other Windows environment before
-tagging/publication. Include actual uninstall, reinstall after uninstall,
-previous-version upgrade, unknown-file/settings preservation, and the remaining
-legacy/foreign-folder cases in `scripts/test-installer.ps1`. If application control
-blocks the unsigned candidate there too, record the block and resolve approved
-distribution/signing requirements rather than disabling protection. Final physical
-Titan, audible preview and live DAW acceptance remain separate manual checks.
+The owner reports successful clean Windows installation, reinstall, uninstall,
+settings/unknown-file preservation, packaged Titan and FL Studio testing with the
+same installer SHA-256 published above. These are user attestations; exact Windows
+build, logs and measurements were not provided. The host-only synthetic
+fresh-legacy/foreign-folder matrix in `scripts/test-installer.ps1` remains partially
+unrun because of the build PC's policy block. The verified and unsafe migration
+cases completed separately as described above. If an organization blocks the
+unsigned release, follow its approved distribution/signing process rather than
+disabling protection.
 
 Generated logs, manifests, executables and test fixtures stay under ignored
 `build/` and `dist/`; none are source-controlled release artifacts.

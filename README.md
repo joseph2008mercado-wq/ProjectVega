@@ -8,12 +8,13 @@ generated six-string voicing. The Titan remains a normal game controller.
 
 ## Download / install Vega
 
-1. Download **Vega-Setup.exe** from [GitHub Releases](https://github.com/joseph2008mercado-wq/ProjectVega/releases).
+1. Download **Vega-Setup.exe** from the [v1.0.0 release](https://github.com/tamarin08/ProjectVega/releases/tag/v1.0.0).
 2. Double-click it and complete Setup.
 3. Launch **Vega** from the Start Menu or optional Desktop shortcut.
 
-The v1.0 candidate is undergoing final acceptance; building it does not publish
-a release/tag. See [release verification](docs/RELEASE_INTEGRATION.md).
+The tested v1.0.0 installer is published. Its SHA-256 is
+`5749330e702f389a67958b8960de29d7e380dcded5a05c8136d2701616051105`.
+See [release verification](docs/RELEASE_INTEGRATION.md).
 
 Supported target: Windows 11 x64. **No Python, pip, Git, compiler, build tools,
 Inno Setup, repository, MIDI cable, DAW or Titan is needed to install or launch.**
@@ -177,8 +178,8 @@ entire packaged folder together when testing it. Generated artifacts stay out of
 
 Installer tests use GUID-isolated identity, paths, shortcuts and settings, not
 your personal installation. Host tests are not clean-machine tests: follow the
-[Windows Sandbox acceptance checklist](docs/CLEAN_WINDOWS_TEST.md) before public
-release. Sandbox is a developer testing tool, not an end-user requirement.
+[clean Windows acceptance checklist](docs/CLEAN_WINDOWS_TEST.md) when testing a
+new build. Sandbox is a developer testing tool, not an end-user requirement.
 
 Standalone diagnostics remain available:
 
